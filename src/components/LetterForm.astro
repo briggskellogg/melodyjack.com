@@ -453,8 +453,29 @@ const today = new Date().toLocaleDateString('en-US', {
     gap: 0.18em;
     line-height: 1.1;
     text-align: right;
+    /* Collapsed at rest so only the wax seal sits in the corner —
+       the launcher reads as a quiet sigil rather than a verbose
+       overlay that fights the page. The label slides in on hover
+       or focus, the way a tooltip would. */
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateX(8px);
+    transition:
+      max-width 360ms var(--ease-out),
+      opacity 280ms var(--ease-out),
+      transform 360ms var(--ease-out);
+  }
+  .letter__launch:hover .letter__launch-label,
+  .letter__launch:focus-visible .letter__launch-label {
+    max-width: 320px;
+    opacity: 1;
     transform: translateX(0);
-    transition: transform 360ms var(--ease-out), opacity 280ms var(--ease-out);
+  }
+  /* The launcher's halo also collapses at rest so it doesn't
+     bleed onto adjacent content. */
+  .letter__launch:not(:hover):not(:focus-visible)::before {
+    inset: -10px -12px;
   }
   .letter__launch-text {
     font-family: var(--font-display);

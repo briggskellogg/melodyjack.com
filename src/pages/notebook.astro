@@ -15,16 +15,13 @@ const rendered = await Promise.all(
 );
 
 // =====================================================================
-// Loose-stars layout — Poisson-disk-style scatter on a fixed-width
-// reference field, projected to viewport %. Cards sit still at rest;
-// the proximity engine in the script lifts them as the cursor approaches.
+// Loose-stars layout — CSS grid with per-card jitter. The grid
+// guarantees non-overlap; the jitter (small translate + rotate
+// per card) gives the field hand-feel without ever letting cards
+// cross cell boundaries.
+//
+// Cards are shuffled so archetypes interleave across the field.
 // =====================================================================
-const FIELD_TOP_PX     = 200;
-const FIELD_BOTTOM_PX  = 160;
-const FIELD_REF_W      = 1400;
-const MIN_SPACING_PX   = 260;
-const PLACE_ATTEMPTS   = 90;
-
 function mulberry32(seed: number) {
   return function () {
     seed = (seed + 0x6D2B79F5) >>> 0;
@@ -43,63 +40,21 @@ function shuffled<T>(arr: T[], seed: number): T[] {
   }
   return a;
 }
-type PxPos = { xPx: number; yPx: number };
-function scatterPositions(count: number, fieldHeightPx: number, seed: number): PxPos[] {
-  const rand = mulberry32(seed);
-  const margin = MIN_SPACING_PX * 0.45;
-  const xMin = margin;
-  const xMax = FIELD_REF_W - margin;
-  const yMin = FIELD_TOP_PX;
-  const yMax = fieldHeightPx - FIELD_BOTTOM_PX;
-  const placed: PxPos[] = [];
-  for (let i = 0; i < count; i++) {
-    let best: PxPos | null = null;
-    let bestNearest = -Infinity;
-    for (let attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
-      const xPx = xMin + rand() * (xMax - xMin);
-      const yPx = yMin + rand() * (yMax - yMin);
-      let nearest = Infinity;
-      for (const p of placed) {
-        const dx = p.xPx - xPx;
-        const dy = p.yPx - yPx;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < nearest) nearest = d;
-      }
-      if (nearest > bestNearest) {
-        bestNearest = nearest;
-        best = { xPx, yPx };
-        if (nearest >= MIN_SPACING_PX * 1.15) break;
-      }
-    }
-    if (best) placed.push(best);
-  }
-  return placed;
-}
 
 const order = shuffled(rendered, 0xC0FFEE);
-const total = order.length;
-const areaPerCard = (MIN_SPACING_PX * 1.10) ** 2;
-const usableHeight = Math.max(MIN_SPACING_PX * 3, (total * areaPerCard) / FIELD_REF_W);
-const fieldHeightPx = FIELD_TOP_PX + Math.round(usableHeight) + FIELD_BOTTOM_PX;
-const positions = scatterPositions(total, fieldHeightPx, 0x1DEA5);
-
-// Assemble the placed list. Each card gets its scatter position
-// + a small per-card resting tilt (deterministic by index).
+const jitter = mulberry32(0xBADBEEF);
 const placed = order.map((r, idx) => {
-  const p = positions[idx] || { xPx: FIELD_REF_W / 2, yPx: FIELD_TOP_PX + idx * MIN_SPACING_PX };
-  const rot = ((idx * 137) % 19) - 9; // -9..+9 deg
-  return {
-    card: r.card,
-    Content: r.Content,
-    x: Math.max(2, Math.min(98, (p.xPx / FIELD_REF_W) * 100)),
-    yPx: p.yPx,
-    rot,
-    idx,
-  };
+  // Per-card jitter, bounded so cards never cross cell edges.
+  // dx and dy are pixel offsets within the cell; rot is the
+  // resting tilt the card carries (-6..+6 deg).
+  const dx = Math.round((jitter() - 0.5) * 18);
+  const dy = Math.round((jitter() - 0.5) * 14);
+  const rot = +((jitter() - 0.5) * 12).toFixed(2);
+  return { card: r.card, Content: r.Content, dx, dy, rot, idx };
 });
 
 const counts = {
-  total,
+  total: all.length,
   logic:    all.filter((c) => c.data.archetype === 'logic').length,
   psyche:   all.filter((c) => c.data.archetype === 'psyche').length,
   instinct: all.filter((c) => c.data.archetype === 'instinct').length,
@@ -130,11 +85,11 @@ const counts = {
       </p>
     </header>
 
-    <div class="loose__field" style={`--field-h:${fieldHeightPx}px;`}>
-      {placed.map(({ card, Content, x, yPx, rot, idx }) => (
+    <div class="loose__field">
+      {placed.map(({ card, Content, dx, dy, rot, idx }) => (
         <div
           class="loose__slot"
-          style={`--x:${x.toFixed(2)}%; --y:${yPx}px; --rot:${rot}deg;`}
+          style={`--dx:${dx}px; --dy:${dy}px; --rot:${rot}deg;`}
           data-slot
         >
           <NoteCard card={card} index={idx} />
@@ -471,12 +426,26 @@ const counts = {
   .loose__count-arch[data-arch='psyche']   { color: rgb(var(--psyche-glow)); }
   .loose__count-arch[data-arch='instinct'] { color: rgb(var(--instinct-glow)); }
 
-  /* SCATTERED FIELD */
+  /* THE FIELD — real CSS grid, fits the viewport. Cards live
+     in cells; per-card jitter (--dx, --dy, --rot) gives each
+     one a small handprint without ever letting it cross into
+     a neighbor's cell. The grid drops columns as the viewport
+     narrows: 4 → 3 → 2 → 1. */
   .loose__field {
-    position: relative;
-    height: var(--field-h, 1800px);
-    min-height: 1200px;
     margin-top: clamp(2.5rem, 6dvh, 4.5rem);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: clamp(1.5rem, 2.5vw, 2.4rem) clamp(1.25rem, 2vw, 2rem);
+    align-items: stretch;
+  }
+  @media (max-width: 1280px) {
+    .loose__field { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (max-width: 880px) {
+    .loose__field { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 600px) {
+    .loose__field { grid-template-columns: 1fr; }
   }
   .loose__slot {
     --prox: 0;
@@ -484,40 +453,50 @@ const counts = {
     --cy: 0;
     --push-x: 0px;
     --push-y: 0px;
-    position: absolute;
-    left: var(--x);
-    top: var(--y);
-    width: clamp(200px, 16vw, 260px);
+    position: relative;
+    /* The cell-internal placement: a small (dx, dy) offset
+       and a per-card rotation. The push offsets are the
+       parting effect when a sibling is hovered. */
     transform:
-      translate(-50%, -50%)
+      translate(var(--dx), var(--dy))
       translate(var(--push-x), var(--push-y));
-    transition: transform 280ms cubic-bezier(0.2, 0.85, 0.25, 1);
+    transition: transform 320ms cubic-bezier(0.2, 0.85, 0.25, 1);
     z-index: 1;
     will-change: transform;
   }
-  .loose__slot:hover { z-index: 50; }
+  .loose__slot:hover,
+  .loose__slot:focus-within { z-index: 50; }
   .loose__slot .note {
     transform-origin: center;
     transform-style: preserve-3d;
     transform:
       perspective(900px)
       rotate(var(--rot, 0deg))
-      rotateY(calc(var(--cx) * var(--prox) * -9deg))
-      rotateX(calc(var(--cy) * var(--prox) *  7deg))
-      translateY(calc(var(--prox) * -7px))
-      scale(calc(1 + var(--prox) * 0.045));
-    transition: transform 110ms cubic-bezier(0.18, 0.9, 0.3, 1);
+      rotateY(calc(var(--cx) * var(--prox) * -8deg))
+      rotateX(calc(var(--cy) * var(--prox) *  6deg))
+      translateY(calc(var(--prox) * -6px))
+      scale(calc(1 + var(--prox) * 0.04));
+    transition: transform 130ms cubic-bezier(0.18, 0.9, 0.3, 1);
     will-change: transform;
   }
   .loose__slot .note[data-active='true'] {
     transform:
       perspective(900px)
-      rotate(calc(var(--rot, 0deg) * 0.25))
-      rotateY(calc(var(--cx) * -7deg))
-      rotateX(calc(var(--cy) *  5deg))
-      translateY(-12px)
-      scale(1.075);
-    transition: transform 240ms cubic-bezier(0.16, 0.9, 0.25, 1.04);
+      rotate(calc(var(--rot, 0deg) * 0.2))
+      rotateY(calc(var(--cx) * -6deg))
+      rotateX(calc(var(--cy) *  4deg))
+      translateY(-10px)
+      scale(1.06);
+    transition: transform 260ms cubic-bezier(0.16, 0.9, 0.25, 1.04);
+  }
+  /* On reduced motion, kill the rotation. The card still pops
+     forward on hover but doesn't tilt. */
+  @media (prefers-reduced-motion: reduce) {
+    .loose__slot .note,
+    .loose__slot .note[data-active='true'] {
+      transform: rotate(var(--rot, 0deg)) !important;
+      transition: none !important;
+    }
   }
 
   /* hidden body source feeds the modal */
@@ -729,26 +708,6 @@ const counts = {
   .loose__panel-body :global(strong) { font-weight: 600; color: var(--accent); }
 
   body.notebook-locked { overflow: hidden; }
-
-  /* Mobile — stack the field instead of scattering. */
-  @media (max-width: 880px) {
-    .loose__field {
-      position: relative;
-      height: auto;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-    .loose__slot {
-      position: relative;
-      left: auto !important;
-      top: auto !important;
-      transform: none !important;
-      width: 100% !important;
-    }
-    .loose__slot .note { transform: none !important; }
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .loose__modal,

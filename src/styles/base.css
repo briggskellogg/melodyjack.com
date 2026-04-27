@@ -96,6 +96,11 @@ html, body {
 body {
   min-height: 100dvh;
   overflow-x: hidden;
+  /* The "Respond to Melody Jack" launcher and the ambient
+     audio player are both fixed-positioned in the bottom
+     corners. Without a safe-area pad, page content scrolls
+     under them and looks visually broken. Reserve room. */
+  padding-bottom: clamp(4.5rem, 8dvh, 6rem);
 }
 
 a { color: inherit; text-decoration: none; }

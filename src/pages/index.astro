@@ -7,26 +7,17 @@ import tarotPsyche   from '~/assets/tarot/psyche.png';
 import tarotInstinct from '~/assets/tarot/instinct.png';
 
 // Pick three representative cards per archetype to anchor each
-// mode's panel — the brief calls for "demonstrate not describe."
-// Order is intentional: Instinct/Slash first (the body fires),
-// then Psyche/Nest (it gets metabolized), then Logic/Build
-// (the architecture is laid). The reader scrolls in the order
-// the brief insists on: Instinct → Psyche → Logic.
+// mode — the brief calls for "demonstrate, don't describe."
 const all = await getCollection('cards');
-
-function pick(arch: 'logic' | 'psyche' | 'instinct', slugs: string[]) {
+function pick(slugs: string[]) {
   return slugs
     .map((s) => all.find((c) => c.slug === s))
     .filter((c): c is NonNullable<typeof c> => Boolean(c));
 }
+const slashCards = pick(['it-pleases-me', 'floor-with-rusty', 'have-you-ever-actually-rested']);
+const nestCards  = pick(['compliment-or-stupid', 'on-the-spiral-sooner', 'the-soul-bond']);
+const buildCards = pick(['parenting-is-nudging', 'two-investment-banks', 'the-stopping-number']);
 
-const slashCards = pick('instinct', ['it-pleases-me', 'floor-with-rusty', 'have-you-ever-actually-rested']);
-const nestCards  = pick('psyche',   ['compliment-or-stupid', 'on-the-spiral-sooner', 'the-soul-bond']);
-const buildCards = pick('logic',    ['parenting-is-nudging', 'two-investment-banks', 'the-stopping-number']);
-
-// Mode definitions — each with the brief's "what it is" /
-// forms / diagnostic / failure-mode / rule. Used to render
-// the in-place reveal when a mode panel is hovered/tapped.
 type Form = { name: string; body: string };
 type Mode = {
   id: 'slash' | 'nest' | 'build';
@@ -53,12 +44,12 @@ const modes: Mode[] = [
     action: 'Slash',
     tagline: 'Full immersion. Body-first. No audience.',
     whatItIs:
-      'The mode where you are fully inside the thing. Body engaged, attention single-pointed, no part of you watching yourself do it. The hand moves before the mind explains why. You are not performing, not narrating, not optimizing — you are *in*. This is why deep work and playing on the floor with your toddler are the same mode. Slash requires the body to commit.',
+      'The mode where you are fully inside the thing. Body engaged, attention single-pointed, no part of you watching yourself do it. The hand moves before the mind explains why. You are not performing, not narrating, not optimizing — you are *in*.',
     forms: [
-      { name: 'Deep work',  body: 'Solo immersive labor; phone away, one named task.' },
-      { name: 'Family',     body: 'On the floor, in the pool, fully present, no parallel screen.' },
-      { name: 'Body',       body: 'Swimming, walking without input, drawing, hard physical skills.' },
-      { name: 'Pleasure',   body: 'The genuine yes; food, music, rest that is actually rest.' },
+      { name: 'Deep work', body: 'Solo immersive labor; phone away, one named task.' },
+      { name: 'Family',    body: 'On the floor, in the pool, fully present, no parallel screen.' },
+      { name: 'Body',      body: 'Swimming, walking without input, drawing, hard physical skills.' },
+      { name: 'Pleasure',  body: 'The genuine yes; food, music, rest that is actually rest.' },
     ],
     diagnostic:
       "Time disappears. The internal narrator goes quiet. You stop asking *am I doing this right.* When it ends, you're tired in a way that feels earned, not depleted.",
@@ -67,7 +58,7 @@ const modes: Mode[] = [
     rule: 'Whatever is moving in you, let it move first. Name it after.',
     cards: slashCards,
     image: tarotInstinct,
-    imageAlt: 'Instinct tarot card',
+    imageAlt: 'Instinct tarot card — Slash',
   },
   {
     id: 'nest',
@@ -76,13 +67,13 @@ const modes: Mode[] = [
     action: 'Nest',
     tagline: 'The inner room where what moved gets metabolized.',
     whatItIs:
-      'The mode where you sit with what just moved. Slash gave you experience; Nest is where experience becomes meaning. The inner voice meets what happened and decides whether to hold it kindly or against you. This is the mode that nearly every productivity culture skips, and the one most needed by people whose wiring puts them on the spiral early.',
+      'The mode where you sit with what just moved. Slash gave you experience; Nest is where experience becomes meaning. The inner voice meets what happened and decides whether to hold it kindly or against you.',
     forms: [
-      { name: 'Solo',           body: 'Journaling, walks without input, the morning hour before anyone wakes.' },
-      { name: 'Co-regulation',  body: 'Long conversations with a soul bond or close friend where neither party is solving.' },
-      { name: 'Therapeutic',    body: 'Therapy, ketamine therapy, the sessions that exist to metabolize what Slash turned up.' },
-      { name: 'Witness',        body: 'Reading, gameplay, art doing your interior work for a moment so you can borrow it.' },
-      { name: 'Repair',         body: 'The conversation with yourself after a mistake; being the kind adult to the kid in there.' },
+      { name: 'Solo',          body: 'Journaling, walks without input, the morning hour before anyone wakes.' },
+      { name: 'Co-regulation', body: 'Long conversations with a soul bond or close friend where neither party is solving.' },
+      { name: 'Therapeutic',   body: 'Therapy, the sessions that exist to metabolize what Slash turned up.' },
+      { name: 'Witness',       body: 'Reading, gameplay, art doing your interior work for a moment so you can borrow it.' },
+      { name: 'Repair',        body: 'The conversation with yourself after a mistake; being the kind adult to the kid in there.' },
     ],
     diagnostic:
       "You're not trying to fix anything. The inner voice is present but not punishing. You can name the feeling without immediately turning it into a task.",
@@ -91,7 +82,7 @@ const modes: Mode[] = [
     rule: 'Be the kind adult to yourself that you would be to your child.',
     cards: nestCards,
     image: tarotPsyche,
-    imageAlt: 'Psyche tarot card',
+    imageAlt: 'Psyche tarot card — Nest',
   },
   {
     id: 'build',
@@ -100,14 +91,14 @@ const modes: Mode[] = [
     action: 'Build',
     tagline: 'Architecture in service of the other two.',
     whatItIs:
-      "The mode where you arrange the world — week, money, relationships, tools, house, career, kids' future — so that Slash and Nest can keep happening. Build is *not* the boss of the other modes. Build is in service to them. Logic is the architecture servant. A correctly built life makes the right Slash easy and the right Nest available.",
+      "The mode where you arrange the world — week, money, relationships, tools, house, career, kids' future — so that Slash and Nest can keep happening. Build is *not* the boss of the other modes. Build is in service to them. Logic is the architecture servant.",
     forms: [
-      { name: 'Career',        body: 'Long-arc thesis work, portfolio of impact, the promotion you don\'t ask for.' },
-      { name: 'Relationship',  body: 'Active deposits, anniversary maintenance, friend-list curation.' },
-      { name: 'Parenting',     body: 'Therapy structures, quality-time architecture, the grandpa-with-the-home-office endgame.' },
-      { name: 'Money',         body: 'Debt strategy, mortgage path, the stopping number.' },
-      { name: 'Creative',      body: 'Site architecture, publishing rhythm, the studio you\'re building toward.' },
-      { name: 'Civic',         body: 'The architecture you build for strangers, because once you see something you owe it.' },
+      { name: 'Career',       body: "Long-arc thesis work, portfolio of impact, the promotion you don't ask for." },
+      { name: 'Relationship', body: 'Active deposits, anniversary maintenance, friend-list curation.' },
+      { name: 'Parenting',    body: 'Therapy structures, quality-time architecture, the grandpa-with-the-home-office endgame.' },
+      { name: 'Money',        body: 'Debt strategy, mortgage path, the stopping number.' },
+      { name: 'Creative',     body: "Site architecture, publishing rhythm, the studio you're building toward." },
+      { name: 'Civic',        body: 'The architecture you build for strangers, because once you see something you owe it.' },
     ],
     diagnostic:
       "You're making decisions about future states. There's a clean satisfaction — *I just made something easier for future-me.* It feels slightly less alive than Slash and slightly less deep than Nest. That's correct.",
@@ -116,7 +107,7 @@ const modes: Mode[] = [
     rule: 'Build the world your Instinct can live in and your Psyche can rest in.',
     cards: buildCards,
     image: tarotLogic,
-    imageAlt: 'Logic tarot card',
+    imageAlt: 'Logic tarot card — Build',
   },
 ];
 ---
@@ -139,102 +130,116 @@ const modes: Mode[] = [
     </p>
   </section>
 
-  {/* THREE MODE PANELS — Slash, Nest, Build */}
-  <section class="zine-modes" aria-label="Slash, Nest, Build">
-    {modes.map((m) => (
-      <article class="mode" data-archetype={m.archetype} data-mode={m.id}>
-        {/* The tarot card image is the centerpiece. The shine
-            sweep + lift on hover is preserved from the existing
-            TarotCard component, lifted inline to avoid a wrapper
-            link (we don't navigate). */}
+  {/* THREE TAROT CARDS — Slash, Nest, Build */}
+  <section class="zine-deck" aria-label="Slash, Nest, Build">
+    {modes.map((m, i) => (
+      <article class="card" data-archetype={m.archetype} data-mode={m.id} style={`--i:${i}`}>
         <button
           type="button"
-          class="mode__panel"
+          class="card__face"
+          aria-haspopup="dialog"
           aria-expanded="false"
+          aria-controls={`mode-reveal-${m.id}`}
           data-mode-toggle
         >
-          <div class="mode__plate">
+          {/* THE TAROT FRAME — full 1:1.7 card with the
+              illustration filling it, an inner gilt border,
+              the action title burned in at the foot, and
+              the cognition label as a tiny eyebrow at the top. */}
+          <div class="card__plate">
             <Image
               src={m.image}
               alt={m.imageAlt}
               widths={[420, 640, 920]}
               sizes="(min-width: 1080px) 28vw, (min-width: 720px) 40vw, 80vw"
-              class="mode__plate-img"
+              class="card__plate-img"
               loading="eager"
             />
-            <span class="mode__plate-glow" aria-hidden="true"></span>
-            <span class="mode__plate-sheen" aria-hidden="true"></span>
+            {/* Decorative gilt frame inside the plate edge —
+                two corner brackets + a bottom panel for the title. */}
+            <span class="card__plate-frame" aria-hidden="true"></span>
+            <span class="card__plate-corner card__plate-corner--tl" aria-hidden="true"></span>
+            <span class="card__plate-corner card__plate-corner--tr" aria-hidden="true"></span>
+            <span class="card__plate-corner card__plate-corner--bl" aria-hidden="true"></span>
+            <span class="card__plate-corner card__plate-corner--br" aria-hidden="true"></span>
+            <span class="card__plate-glow" aria-hidden="true"></span>
+            <span class="card__plate-sheen" aria-hidden="true"></span>
+
+            {/* Title plaque burned into the bottom of the card */}
+            <span class="card__plaque" aria-hidden="true">
+              <span class="card__plaque-cog">{m.cognition}</span>
+              <span class="card__plaque-action">{m.action}</span>
+            </span>
           </div>
 
-          <header class="mode__head">
-            <p class="mode__cog" aria-hidden="true">{m.cognition}</p>
-            <h2 class="mode__action">{m.action}</h2>
-            <p class="mode__tag">{m.tagline}</p>
-          </header>
-
-          {/* The "rule, plainly" — visible at rest. The full
-              body content reveals on hover/focus/tap. */}
-          <p class="mode__rule">
-            <span class="mode__rule-mark">¶</span>
-            <span class="mode__rule-text">{m.rule}</span>
-          </p>
-
-          <div class="mode__chevron" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14">
-              <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+          {/* BELOW THE CARD — tagline, rule, hover hint */}
+          <div class="card__caption">
+            <p class="card__tag">{m.tagline}</p>
+            <p class="card__rule">
+              <span class="card__rule-mark" aria-hidden="true">¶</span>
+              <span class="card__rule-text">{m.rule}</span>
+            </p>
+            <span class="card__hint">
+              <span>read more</span>
+              <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
           </div>
         </button>
 
-        {/* The reveal panel — opens on hover (desktop) or tap
-            (mobile). Contains the full "what it is" body, the
-            forms, diagnostic, schedule, and failure mode from
-            the rebuild brief, plus three demonstrating cards. */}
-        <div class="mode__reveal" data-mode-reveal>
-          <div class="mode__reveal-inner">
-            <div class="mode__reveal-prose">
-              <p class="mode__reveal-what" set:html={m.whatItIs.replace(/\*([^*]+)\*/g, '<em>$1</em>')}></p>
+        {/* THE READING — opens to the side as a tarot reading
+            panel: the full mode body. On wide viewports it
+            slides out to the right of the card; on narrow it
+            stacks below. Either way, in-place — no
+            navigation, no full-page modal. */}
+        <aside
+          class="card__reading"
+          id={`mode-reveal-${m.id}`}
+          data-mode-reveal
+          aria-hidden="true"
+        >
+          <header class="card__reading-head">
+            <p class="card__reading-eyebrow">
+              {m.cognition} <span class="card__reading-arrow">→</span> {m.action}
+            </p>
+            <h3 class="card__reading-title">{m.tagline}</h3>
+          </header>
 
-              <dl class="mode__forms">
-                {m.forms.map((f) => (
-                  <div class="mode__form">
-                    <dt>{f.name}</dt>
-                    <dd>{f.body}</dd>
-                  </div>
-                ))}
-              </dl>
+          <p class="card__reading-what" set:html={m.whatItIs.replace(/\*([^*]+)\*/g, '<em>$1</em>')}></p>
 
-              <div class="mode__bullets">
-                <p><span class="mode__bullet-key">Diagnostic.</span> <span set:html={m.diagnostic.replace(/\*([^*]+)\*/g, '<em>$1</em>')}></span></p>
-                <p><span class="mode__bullet-key">Schedule shape.</span> {m.schedule}</p>
-                <p><span class="mode__bullet-key">Failure mode.</span> {m.failure}</p>
+          <dl class="card__reading-forms">
+            {m.forms.map((f) => (
+              <div class="card__reading-form">
+                <dt>{f.name}</dt>
+                <dd>{f.body}</dd>
               </div>
-            </div>
+            ))}
+          </dl>
 
-            <aside class="mode__demos" aria-label="Cards that demonstrate this mode">
-              <p class="eyebrow mode__demos-eyebrow">From the notebook</p>
-              <ul>
-                {m.cards.map((c) => (
-                  <li>
-                    <a class="mode__demo" href={`/notebook#${c.slug}`}>
-                      <span class="mode__demo-seed">{c.data.seed}</span>
-                      <span class="mode__demo-foot">
-                        <span class="mode__demo-aim">{c.data.aim}</span>
-                        <span class="mode__demo-state">{c.data.state}</span>
-                      </span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
-              <a class="mode__demos-more" href="/notebook">
-                See all in Loose Stars
-                <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
-                  <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </a>
-            </aside>
+          <div class="card__reading-bullets">
+            <p><span class="card__reading-key">Diagnostic.</span> <span set:html={m.diagnostic.replace(/\*([^*]+)\*/g, '<em>$1</em>')}></span></p>
+            <p><span class="card__reading-key">Schedule shape.</span> {m.schedule}</p>
+            <p><span class="card__reading-key">Failure mode.</span> {m.failure}</p>
           </div>
-        </div>
+
+          <div class="card__reading-demos">
+            <p class="card__reading-demos-eyebrow">From the notebook</p>
+            <ul>
+              {m.cards.map((c) => (
+                <li>
+                  <a class="card__reading-demo" href={`/notebook#${c.slug}`}>
+                    <span class="card__reading-demo-seed">{c.data.seed}</span>
+                    <span class="card__reading-demo-foot">
+                      <span class="card__reading-demo-aim">{c.data.aim}</span>
+                      <span class="card__reading-demo-state">{c.data.state}</span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
       </article>
     ))}
   </section>
@@ -262,44 +267,40 @@ const modes: Mode[] = [
 
 <script>
   /**
-   * Mode-panel toggle. On desktop, hovering the panel pre-opens
-   * the reveal; on mobile, tapping the panel toggles it. Either
-   * way the reveal is in-place — there is no navigation.
-   *
-   * Multiple modes can be open at once. Tapping a mode that's
-   * already open closes it.
+   * Each mode card has a click-to-toggle reading panel and a
+   * hover-to-preview behavior on desktop. Multiple readings
+   * can be open at once. The reveal slides in beside the
+   * card on wide viewports and below it on narrow.
    */
   function init() {
-    const panels = document.querySelectorAll<HTMLElement>('.mode');
-    panels.forEach((panel) => {
-      const toggle = panel.querySelector<HTMLButtonElement>('[data-mode-toggle]');
-      const reveal = panel.querySelector<HTMLElement>('[data-mode-reveal]');
+    document.querySelectorAll<HTMLElement>('.card').forEach((card) => {
+      const toggle = card.querySelector<HTMLButtonElement>('[data-mode-toggle]');
+      const reveal = card.querySelector<HTMLElement>('[data-mode-reveal]');
       if (!toggle || !reveal) return;
 
-      // Click toggles open/closed (mobile + keyboard).
+      function setOpen(open: boolean) {
+        card.classList.toggle('is-open', open);
+        toggle!.setAttribute('aria-expanded', String(open));
+        reveal!.setAttribute('aria-hidden', String(!open));
+      }
+
       toggle.addEventListener('click', () => {
-        const open = panel.classList.toggle('is-open');
-        toggle.setAttribute('aria-expanded', String(open));
+        setOpen(!card.classList.contains('is-open'));
       });
 
-      // Desktop hover — open while hovered, close when leaving.
-      // Skipped on touch (no persistent cursor).
+      // Desktop hover — open while hovered (with a small grace
+      // period so the cursor can swing into the reading panel
+      // without it snapping closed).
       let hoverTimer: ReturnType<typeof setTimeout> | null = null;
-      panel.addEventListener('pointerenter', (e) => {
+      card.addEventListener('pointerenter', (e) => {
         if (e.pointerType === 'touch') return;
         if (hoverTimer) clearTimeout(hoverTimer);
-        panel.classList.add('is-open');
-        toggle.setAttribute('aria-expanded', 'true');
+        setOpen(true);
       });
-      panel.addEventListener('pointerleave', (e) => {
+      card.addEventListener('pointerleave', (e) => {
         if (e.pointerType === 'touch') return;
-        // Small delay so the cursor can swing into the reveal
-        // panel without it snapping closed underneath them.
         if (hoverTimer) clearTimeout(hoverTimer);
-        hoverTimer = setTimeout(() => {
-          panel.classList.remove('is-open');
-          toggle.setAttribute('aria-expanded', 'false');
-        }, 120);
+        hoverTimer = setTimeout(() => setOpen(false), 150);
       });
     });
   }
@@ -309,10 +310,12 @@ const modes: Mode[] = [
 
 <style>
   /* ============================================================
-     ZINE FRONT PAGE — three tarot panels, hover/tap to reveal.
-     The page sits over the galaxy background; each panel lives
-     on its archetype color and uses one of the Desktop tarot
-     images as its centerpiece.
+     ZINE — three tarot cards on a starlit table.
+     The cards are the load-bearing object: each one rendered as
+     a full 1:1.7 tarot card, gilt frame, action title burned
+     into a plaque at the foot, the artwork running its full
+     length without crop. Hover reveals the reading panel
+     beside the card.
      ============================================================ */
   .zine-hero {
     position: relative;
@@ -320,7 +323,7 @@ const modes: Mode[] = [
     text-align: center;
     max-width: 56ch;
     margin: 0 auto;
-    padding: clamp(6rem, 12dvh, 9rem) clamp(1.25rem, 4vw, 3rem) clamp(2rem, 4dvh, 3rem);
+    padding: clamp(5rem, 10dvh, 8rem) clamp(1.25rem, 4vw, 3rem) clamp(2rem, 4dvh, 3rem);
   }
   .zine-hero__title {
     margin: 0.6rem 0 1rem;
@@ -387,118 +390,164 @@ const modes: Mode[] = [
   }
 
   /* ============================================================
-     MODE PANELS
+     THE DECK — three tarot cards on a single horizontal axis.
+     We use a flex row so the readings can grow rightward when
+     opened on wide screens; on narrow screens the deck stacks.
      ============================================================ */
-  .zine-modes {
+  .zine-deck {
     position: relative;
     z-index: 1;
     max-width: 1480px;
     margin: 0 auto;
-    padding: clamp(1.5rem, 4dvh, 3rem) clamp(1rem, 4vw, 3rem) clamp(2rem, 4dvh, 3rem);
+    padding: clamp(1.5rem, 4dvh, 3rem) clamp(1.25rem, 4vw, 3rem) clamp(1.5rem, 3dvh, 2.5rem);
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: clamp(1rem, 2.5vw, 2rem);
-    align-items: stretch;
+    gap: clamp(1.5rem, 3vw, 3rem);
+    align-items: start;
   }
   @media (max-width: 1024px) {
-    .zine-modes { grid-template-columns: 1fr; gap: clamp(1.5rem, 3vh, 2.5rem); }
+    .zine-deck { grid-template-columns: 1fr; gap: clamp(2rem, 4vh, 3rem); }
   }
 
-  .mode {
+  .card {
     --acc-rgb: 201, 126, 85;
     --acc:     #c97e55;
     position: relative;
     isolation: isolate;
   }
-  .mode[data-archetype='logic']    { --acc-rgb: var(--logic-glow);    --acc: rgb(var(--logic-glow)); }
-  .mode[data-archetype='psyche']   { --acc-rgb: var(--psyche-glow);   --acc: rgb(var(--psyche-glow)); }
-  .mode[data-archetype='instinct'] { --acc-rgb: var(--instinct-glow); --acc: rgb(var(--instinct-glow)); }
+  .card[data-archetype='logic']    { --acc-rgb: var(--logic-glow);    --acc: rgb(var(--logic-glow)); }
+  .card[data-archetype='psyche']   { --acc-rgb: var(--psyche-glow);   --acc: rgb(var(--psyche-glow)); }
+  .card[data-archetype='instinct'] { --acc-rgb: var(--instinct-glow); --acc: rgb(var(--instinct-glow)); }
 
-  /* The tarot panel button itself. */
-  .mode__panel {
+  .card__face {
     width: 100%;
     text-align: left;
-    background:
-      linear-gradient(180deg,
-        rgba(var(--acc-rgb), 0.06) 0%,
-        rgba(8, 6, 14, 0.45) 100%);
-    border: 1px solid rgba(var(--acc-rgb), 0.30);
-    border-radius: 18px;
-    padding: clamp(1.25rem, 2vw, 1.75rem);
-    color: var(--warm-white);
+    background: transparent;
+    border: 0;
+    padding: 0;
     cursor: pointer;
     display: grid;
-    grid-template-rows: auto auto auto auto;
-    gap: 1rem;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    box-shadow:
-      0 30px 60px -30px rgba(0, 0, 0, 0.7),
-      0 0 24px -6px rgba(var(--acc-rgb), 0.18);
-    transition:
-      transform var(--duration) var(--ease-out),
-      border-color var(--duration) var(--ease-out),
-      box-shadow var(--duration) var(--ease-out),
-      background var(--duration) var(--ease-out);
+    gap: clamp(1rem, 2vh, 1.4rem);
+    color: var(--warm-white);
   }
-  .mode.is-open .mode__panel,
-  .mode__panel:hover,
-  .mode__panel:focus-visible {
-    transform: translateY(-4px);
-    border-color: rgba(var(--acc-rgb), 0.65);
-    box-shadow:
-      0 40px 80px -30px rgba(0, 0, 0, 0.75),
-      0 0 36px -4px rgba(var(--acc-rgb), 0.30);
-    outline: none;
-  }
+  .card__face:focus-visible { outline: none; }
 
-  /* Tarot plate — preserves the shine-sweep aesthetic from
-     the previous TarotCard component but inlined here so the
-     whole mode__panel acts as a single button. */
-  .mode__plate {
+  /* THE TAROT PLATE — true tarot card aspect (1:1.7), the
+     full illustration visible (object-fit: contain on a tinted
+     paper backplate so the art floats inside its frame),
+     gilt corners, and an action plaque burned into the bottom.
+     The artwork has the SAME aspect on disk (1:2 portrait),
+     and `contain` on a 1:1.7 frame leaves a tiny letterbox
+     band at the top + bottom that the corner brackets and
+     plaque sit on. */
+  .card__plate {
     position: relative;
     width: 100%;
-    aspect-ratio: 1 / 1.55;
-    border-radius: 12px;
+    aspect-ratio: 1 / 1.7;
+    border-radius: 14px;
     overflow: hidden;
     isolation: isolate;
+    background:
+      radial-gradient(
+        ellipse at center,
+        rgba(var(--acc-rgb), 0.20) 0%,
+        rgba(8, 6, 14, 0.85) 70%
+      );
+    border: 1px solid rgba(var(--acc-rgb), 0.45);
     box-shadow:
-      0 24px 40px -16px rgba(0, 0, 0, 0.7),
-      0 0 0 1px rgba(var(--acc-rgb), 0.32),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-    transform: translateZ(0);
-    transition: transform 520ms var(--ease-out);
+      0 30px 60px -28px rgba(0, 0, 0, 0.85),
+      0 0 0 1px rgba(0, 0, 0, 0.4) inset,
+      0 0 28px rgba(var(--acc-rgb), 0.25);
+    transition:
+      transform 540ms var(--ease-out),
+      box-shadow 540ms var(--ease-out),
+      border-color 540ms var(--ease-out);
   }
-  .mode__plate-img {
+  .card.is-open .card__plate,
+  .card__face:hover .card__plate,
+  .card__face:focus-visible .card__plate {
+    transform: translateY(-6px);
+    border-color: rgba(var(--acc-rgb), 0.85);
+    box-shadow:
+      0 40px 80px -28px rgba(0, 0, 0, 0.85),
+      0 0 36px rgba(var(--acc-rgb), 0.42),
+      0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+  }
+  .card__plate-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    object-position: center;
-    filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.4));
-    transition: filter 520ms var(--ease-out), transform 520ms var(--ease-out);
+    object-position: center top;
+    display: block;
   }
-  /* Halo behind the plate — brightens on hover. */
-  .mode__plate-glow {
+  /* Decorative inner frame — a thin gilt rule traced inside
+     the plate edge, with extra weight on top + bottom panels. */
+  .card__plate-frame {
     position: absolute;
-    inset: -10%;
+    inset: 8px;
+    border: 1px solid rgba(var(--acc-rgb), 0.55);
+    border-radius: 10px;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+  /* Corner brackets — short bars in each corner of the plate. */
+  .card__plate-corner {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    color: rgba(var(--acc-rgb), 0.95);
+    pointer-events: none;
+  }
+  .card__plate-corner::before,
+  .card__plate-corner::after {
+    content: '';
+    position: absolute;
+    background: currentColor;
+    box-shadow: 0 0 8px rgba(var(--acc-rgb), 0.55);
+  }
+  .card__plate-corner::before { width: 100%; height: 1.5px; }
+  .card__plate-corner::after  { width: 1.5px; height: 100%; }
+  .card__plate-corner--tl { top: 16px; left: 16px; }
+  .card__plate-corner--tl::before { top: 0; left: 0; }
+  .card__plate-corner--tl::after  { top: 0; left: 0; }
+  .card__plate-corner--tr { top: 16px; right: 16px; }
+  .card__plate-corner--tr::before { top: 0; right: 0; }
+  .card__plate-corner--tr::after  { top: 0; right: 0; }
+  .card__plate-corner--bl { bottom: 16px; left: 16px; }
+  .card__plate-corner--bl::before { bottom: 0; left: 0; }
+  .card__plate-corner--bl::after  { bottom: 0; left: 0; }
+  .card__plate-corner--br { bottom: 16px; right: 16px; }
+  .card__plate-corner--br::before { bottom: 0; right: 0; }
+  .card__plate-corner--br::after  { bottom: 0; right: 0; }
+
+  /* Halo behind the plate — brightens on hover. */
+  .card__plate-glow {
+    position: absolute;
+    inset: -8%;
     z-index: -1;
     background: radial-gradient(
       ellipse at center,
-      rgba(var(--acc-rgb), 0.45) 0%,
-      rgba(var(--acc-rgb), 0.15) 35%,
+      rgba(var(--acc-rgb), 0.42) 0%,
+      rgba(var(--acc-rgb), 0.10) 35%,
       transparent 65%
     );
-    opacity: 0.45;
+    opacity: 0.35;
     filter: blur(28px);
-    transition: opacity 520ms var(--ease-out), transform 520ms var(--ease-out);
+    transition: opacity 540ms var(--ease-out), transform 540ms var(--ease-out);
     pointer-events: none;
   }
-  /* Sheen — a light pass that sweeps the plate on hover.
-     Preserved from the previous tarot card behavior. */
-  .mode__plate-sheen {
+  .card.is-open .card__plate-glow,
+  .card__face:hover .card__plate-glow,
+  .card__face:focus-visible .card__plate-glow {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+  /* Sheen — the diagonal light pass that sweeps across the plate
+     on hover. Preserved from the previous TarotCard component. */
+  .card__plate-sheen {
     position: absolute;
     inset: 0;
-    z-index: 2;
+    z-index: 3;
     border-radius: inherit;
     pointer-events: none;
     background: linear-gradient(
@@ -510,154 +559,213 @@ const modes: Mode[] = [
     mix-blend-mode: overlay;
     opacity: 0;
     transform: translateX(-30%);
-    transition: opacity 520ms var(--ease-out), transform 1100ms var(--ease-out);
+    transition: opacity 600ms var(--ease-out), transform 1100ms var(--ease-out);
   }
-  .mode.is-open .mode__plate,
-  .mode__panel:hover .mode__plate,
-  .mode__panel:focus-visible .mode__plate {
-    transform: translateY(-6px) scale(1.02);
-  }
-  .mode.is-open .mode__plate-glow,
-  .mode__panel:hover .mode__plate-glow,
-  .mode__panel:focus-visible .mode__plate-glow {
-    opacity: 0.85;
-    transform: scale(1.08);
-  }
-  .mode.is-open .mode__plate-sheen,
-  .mode__panel:hover .mode__plate-sheen,
-  .mode__panel:focus-visible .mode__plate-sheen {
+  .card.is-open .card__plate-sheen,
+  .card__face:hover .card__plate-sheen,
+  .card__face:focus-visible .card__plate-sheen {
     opacity: 1;
     transform: translateX(50%);
   }
 
-  /* Header block — Cognition (eyebrow) · Action (title) · Tagline. */
-  .mode__head {
-    display: grid;
-    gap: 0.4rem;
+  /* The action plaque burned into the bottom of the card —
+     the cognition (small caps eyebrow) above the action
+     (italic display title). */
+  .card__plaque {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    bottom: 6%;
+    z-index: 4;
+    text-align: center;
+    pointer-events: none;
+    padding: 0.55rem 0.8rem 0.65rem;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(8, 6, 14, 0.0) 0%,
+        rgba(8, 6, 14, 0.78) 35%,
+        rgba(8, 6, 14, 0.92) 100%
+      );
+    border-top: 1px solid rgba(var(--acc-rgb), 0.55);
+    box-shadow: 0 -10px 24px rgba(8, 6, 14, 0.35);
   }
-  .mode__cog {
-    margin: 0;
+  .card__plaque-cog {
+    display: block;
     font-family: var(--font-sans);
-    font-size: 0.62rem;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(var(--acc-rgb), 0.92);
+    text-shadow: 0 0 12px rgba(var(--acc-rgb), 0.55);
+  }
+  .card__plaque-action {
+    display: block;
+    margin-top: 0.18rem;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: clamp(1.7rem, 1.6vw + 1.05rem, 2.4rem);
+    line-height: 1.0;
+    color: var(--warm-white);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+    letter-spacing: -0.012em;
+  }
+
+  /* CAPTION — tagline + rule + read-more hint, sits below the
+     card with a comfortable measure. */
+  .card__caption {
+    display: grid;
+    gap: 0.7rem;
+    padding: 0 0.25rem;
+  }
+  .card__tag {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: clamp(0.95rem, 0.4vw + 0.8rem, 1.05rem);
+    line-height: 1.45;
+    color: var(--warm-white-dim);
+  }
+  .card__rule {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.55em;
+    padding: 0.7rem 0.85rem;
+    border-left: 2px solid rgba(var(--acc-rgb), 0.55);
+    background: rgba(var(--acc-rgb), 0.06);
+    border-radius: 4px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    color: var(--warm-white);
+  }
+  .card__rule-mark {
+    color: rgba(var(--acc-rgb), 0.85);
+    font-weight: 600;
+    font-style: italic;
+  }
+  .card__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(var(--acc-rgb), 0.85);
+    transition: transform var(--duration) var(--ease-out);
+  }
+  .card.is-open .card__hint,
+  .card__face:hover .card__hint { transform: translateX(2px); }
+  .card.is-open .card__hint svg { transform: rotate(180deg); }
+  .card__hint svg { transition: transform var(--duration) var(--ease-out); }
+
+  /* THE READING — inline expansion below the card. The deck
+     is a CSS grid where each card lives in its own column;
+     when one card opens, only that column grows taller. The
+     layout never collides because each reading sits inside
+     its column. */
+  .card { display: grid; grid-template-rows: auto auto; }
+  .card__reading {
+    margin-top: clamp(0.85rem, 1.5vw, 1.2rem);
+    max-height: 0;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg,
+        rgba(15, 12, 22, 0.94) 0%,
+        rgba(8, 6, 14, 0.96) 100%);
+    border: 1px solid rgba(var(--acc-rgb), 0.32);
+    border-radius: 12px;
+    box-shadow:
+      0 30px 60px -28px rgba(0, 0, 0, 0.85),
+      0 0 24px rgba(var(--acc-rgb), 0.16);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition:
+      max-height 540ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 380ms var(--ease-out),
+      transform 380ms var(--ease-out),
+      border-color 380ms var(--ease-out);
+  }
+  .card.is-open .card__reading {
+    max-height: 1800px;
+    opacity: 1;
+    transform: translateY(0);
+    border-color: rgba(var(--acc-rgb), 0.55);
+  }
+  .card__reading > * { padding-inline: clamp(1.1rem, 2vw, 1.5rem); }
+  .card__reading-head { padding-top: clamp(1.1rem, 2vw, 1.4rem); }
+  .card__reading-eyebrow {
+    margin: 0 0 0.45rem;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.32em;
     text-transform: uppercase;
     color: rgba(var(--acc-rgb), 0.85);
   }
-  .mode__action {
+  .card__reading-arrow { color: var(--warm-white-faint); margin: 0 0.4em; }
+  .card__reading-title {
     margin: 0;
     font-family: var(--font-display);
     font-style: italic;
     font-weight: 500;
-    font-size: clamp(2rem, 2.4vw + 1.2rem, 2.85rem);
-    line-height: 1;
-    letter-spacing: -0.012em;
+    font-size: clamp(1.05rem, 0.9vw + 0.78rem, 1.3rem);
+    line-height: 1.3;
     color: var(--warm-white);
-    text-shadow: 0 0 24px rgba(var(--acc-rgb), 0.32);
   }
-  .mode__tag {
-    margin: 0;
+  .card__reading-what {
+    margin: 1rem 0 1rem;
     font-family: var(--font-serif);
-    font-style: italic;
     font-size: 0.92rem;
-    line-height: 1.5;
+    line-height: 1.6;
     color: var(--warm-white-dim);
   }
+  .card__reading-what em { color: var(--warm-white); font-style: italic; }
 
-  /* The "rule, plainly" — always visible. */
-  .mode__rule {
-    margin: 0;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0.6em;
+  .card__reading-forms {
+    margin: 0 0 1rem;
     padding: 0.85rem 1rem;
-    border-left: 2px solid rgba(var(--acc-rgb), 0.55);
-    background: rgba(var(--acc-rgb), 0.06);
-    border-radius: 4px;
-    font-family: var(--font-serif);
-    font-size: 0.92rem;
-    line-height: 1.5;
-    color: var(--warm-white);
-  }
-  .mode__rule-mark {
-    color: rgba(var(--acc-rgb), 0.85);
-    font-style: italic;
-    font-weight: 600;
-  }
-  .mode__rule-text { font-style: italic; }
-
-  .mode__chevron {
-    display: flex;
-    justify-content: flex-end;
-    color: rgba(var(--acc-rgb), 0.7);
-    transition: transform var(--duration) var(--ease-out);
-  }
-  .mode.is-open .mode__chevron { transform: rotate(180deg); }
-
-  /* THE REVEAL — opens in place. */
-  .mode__reveal {
-    margin-top: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 540ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  .mode.is-open .mode__reveal {
-    max-height: 3000px;  /* generous; content drives the actual height */
-  }
-  .mode__reveal-inner {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    gap: clamp(1.25rem, 3vw, 2.5rem);
-    padding: 1.4rem 0.25rem 0.25rem;
-  }
-  @media (max-width: 720px) {
-    .mode__reveal-inner { grid-template-columns: 1fr; gap: 1.5rem; padding: 1.25rem 0 0; }
-  }
-  .mode__reveal-prose {
-    font-family: var(--font-serif);
-    font-size: 0.95rem;
-    line-height: 1.65;
-    color: var(--warm-white-dim);
-  }
-  .mode__reveal-prose em { color: var(--warm-white); font-style: italic; }
-  .mode__reveal-what { margin: 0 0 1.2rem; }
-
-  .mode__forms {
-    display: grid;
-    gap: 0.6rem;
-    margin: 0 0 1.2rem;
-    padding: 0.95rem 1rem;
-    background: rgba(8, 6, 14, 0.35);
+    background: rgba(8, 6, 14, 0.6);
     border: 1px solid rgba(var(--acc-rgb), 0.18);
     border-radius: 8px;
-  }
-  .mode__form {
     display: grid;
-    grid-template-columns: minmax(80px, max-content) 1fr;
-    gap: 0.85rem;
+    gap: 0.55rem;
+  }
+  .card__reading-form {
+    display: grid;
+    grid-template-columns: 7em 1fr;
+    gap: 0.7rem;
     align-items: baseline;
   }
-  .mode__form dt {
+  .card__reading-form dt {
     font-family: var(--font-sans);
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: rgba(var(--acc-rgb), 0.85);
   }
-  .mode__form dd {
+  .card__reading-form dd {
     margin: 0;
     font-family: var(--font-serif);
-    font-size: 0.88rem;
-    line-height: 1.55;
+    font-size: 0.85rem;
+    line-height: 1.5;
     color: var(--warm-white-dim);
   }
 
-  .mode__bullets p { margin: 0 0 0.6rem; }
-  .mode__bullets p:last-child { margin-bottom: 0; }
-  .mode__bullet-key {
+  .card__reading-bullets { margin: 0 0 1rem; }
+  .card__reading-bullets p { margin: 0 0 0.55rem; font-family: var(--font-serif); font-size: 0.88rem; line-height: 1.55; color: var(--warm-white-dim); }
+  .card__reading-bullets p:last-child { margin-bottom: 0; }
+  .card__reading-bullets em { color: var(--warm-white); font-style: italic; }
+  .card__reading-key {
     font-family: var(--font-sans);
-    font-size: 0.66rem;
+    font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
@@ -665,22 +773,26 @@ const modes: Mode[] = [
     margin-right: 0.4em;
   }
 
-  /* DEMOS — three notebook cards that demonstrate the mode. */
-  .mode__demos {
+  .card__reading-demos {
+    padding-bottom: clamp(1.1rem, 2vw, 1.4rem);
     display: grid;
-    gap: 0.7rem;
-    align-content: start;
+    gap: 0.55rem;
   }
-  .mode__demos-eyebrow {
-    color: rgba(var(--acc-rgb), 0.7);
+  .card__reading-demos-eyebrow {
     margin: 0;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--warm-white-faint);
   }
-  .mode__demos ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
-  .mode__demo {
+  .card__reading-demos ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+  .card__reading-demo {
     display: grid;
-    gap: 0.4rem;
-    padding: 0.7rem 0.8rem;
-    background: rgba(8, 6, 14, 0.4);
+    gap: 0.35rem;
+    padding: 0.6rem 0.7rem;
+    background: rgba(var(--acc-rgb), 0.06);
     border: 1px solid rgba(var(--acc-rgb), 0.22);
     border-radius: 8px;
     color: var(--warm-white);
@@ -690,51 +802,39 @@ const modes: Mode[] = [
       border-color var(--duration) var(--ease-out),
       background var(--duration) var(--ease-out);
   }
-  .mode__demo:hover,
-  .mode__demo:focus-visible {
+  .card__reading-demo:hover,
+  .card__reading-demo:focus-visible {
     transform: translateX(2px);
     border-color: rgba(var(--acc-rgb), 0.55);
-    background: rgba(var(--acc-rgb), 0.08);
+    background: rgba(var(--acc-rgb), 0.10);
     outline: none;
   }
-  .mode__demo-seed {
+  .card__reading-demo-seed {
     font-family: var(--font-display);
     font-style: italic;
-    font-size: 0.92rem;
-    line-height: 1.35;
+    font-size: 0.88rem;
+    line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .mode__demo-foot {
+  .card__reading-demo-foot {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     font-family: var(--font-sans);
-    font-size: 0.58rem;
+    font-size: 0.55rem;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--warm-white-faint);
   }
-  .mode__demo-state {
-    color: rgba(var(--acc-rgb), 0.85);
-  }
-  .mode__demos-more {
-    margin-top: 0.4rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4em;
-    font-family: var(--font-sans);
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(var(--acc-rgb), 0.85);
-    transition: transform var(--duration) var(--ease-out);
-  }
-  .mode__demos-more:hover { transform: translateX(2px); }
+  .card__reading-demo-state { color: rgba(var(--acc-rgb), 0.9); }
+
+  /* The deck stacks on narrow screens (already handled by
+     the .zine-deck media query above). The reading panel's
+     inline expansion just works. */
 
   /* INTEGRATION RIBBON */
   .zine-ribbon {
@@ -743,7 +843,7 @@ const modes: Mode[] = [
     text-align: center;
     max-width: 60ch;
     margin: 0 auto;
-    padding: clamp(2.5rem, 5dvh, 4rem) clamp(1.25rem, 4vw, 3rem) clamp(4rem, 8dvh, 6rem);
+    padding: clamp(2.5rem, 5dvh, 4rem) clamp(1.25rem, 4vw, 3rem) clamp(5rem, 10dvh, 7rem);
   }
   .zine-ribbon__lines {
     margin: 0 0 1.4rem;
