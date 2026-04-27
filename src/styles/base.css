@@ -1,0 +1,182 @@
+/* ============================================================
+   MELODY JACK — global tokens + base styles
+   ------------------------------------------------------------
+   Two pages live here: the zine at / and the loose-stars
+   notebook at /notebook. There is no navigation; the only way
+   between them is the URL bar. Everything else is reveal-in-
+   place via hover (desktop) or tap (mobile).
+
+   The palette is a small cosmology, per "The Nine Colors"
+   lyric in the canon: brown soil, blue room, yellow lamp,
+   red pulse, gold rare-yes, silver long-memory, teal
+   threshold — plus paper and ink. Used sparingly.
+   ============================================================ */
+
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/fraunces/400.css';
+@import '@fontsource/fraunces/400-italic.css';
+@import '@fontsource/fraunces/500.css';
+@import '@fontsource/fraunces/500-italic.css';
+@import '@fontsource/fraunces/600.css';
+@import '@fontsource/fraunces/700.css';
+
+:root {
+  /* — type — */
+  --font-display: 'Fraunces', 'Times New Roman', serif;
+  --font-serif:   'Fraunces', 'Times New Roman', serif;
+  --font-sans:    'Inter', -apple-system, system-ui, sans-serif;
+
+  /* — the nine colors —
+     Each is a function in the work, not a decoration of it.
+     Gold is the rare yes; silver is the long memory; teal
+     is the threshold; brown is the soil. */
+  --soil:      #2a1f17;       /* brown, the soil */
+  --room:      #1f2837;       /* blue, the inner room */
+  --lamp:      #FBE1B6;       /* yellow, the working lamp */
+  --pulse:     #AE7D83;       /* red, the body's pulse */
+  --gold:      #c97e55;       /* gold, the rare yes */
+  --silver:    #B8B2A3;       /* silver, the long memory */
+  --teal:      #6f9b9e;       /* teal, the threshold */
+  --paper:     #f6f1e8;       /* warm paper, when used */
+  --ink:       #0d0b14;       /* the ink that writes */
+
+  /* — archetype tokens (rgb so we can compose with alpha) — */
+  --logic-glow:    251, 225, 182;   /* lamp */
+  --psyche-glow:   115, 137, 161;   /* room (cool) */
+  --instinct-glow: 174, 125, 131;   /* pulse */
+  --highlight:     var(--gold);
+  --highlight-rgb: 201, 126, 85;
+
+  /* — surface — */
+  --bg:            #0a0814;          /* deep void, the galaxy */
+  --bg-soft:       #14101e;
+  --warm-white:        #f3ece1;
+  --warm-white-dim:    rgba(243, 236, 225, 0.65);
+  --warm-white-faint:  rgba(243, 236, 225, 0.38);
+
+  /* — motion — */
+  --duration: 360ms;
+  --ease-out: cubic-bezier(0.2, 0.85, 0.25, 1);
+
+  /* — spacing scale — */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  --leading-prose: 1.65;
+  --radius: 14px;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--warm-white);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+img, svg, video { display: block; max-width: 100%; }
+
+::selection {
+  background: rgba(var(--highlight-rgb), 0.45);
+  color: var(--warm-white);
+}
+
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--warm-white-faint);
+  margin: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The signature mark sits top-left on every page. There is no
+   nav; the mark is identity-only. It links to / so the reader
+   can return to the zine from anywhere. */
+.brand-mark {
+  position: fixed;
+  top: clamp(1rem, 2.5dvh, 1.6rem);
+  left: clamp(1rem, 2.5vw, 1.6rem);
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.4em 0.6em;
+  border-radius: 999px;
+  color: var(--warm-white);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  background: rgba(8, 6, 14, 0.32);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+}
+.brand-mark:hover,
+.brand-mark:focus-visible {
+  background: rgba(8, 6, 14, 0.55);
+  transform: translateY(-1px);
+  outline: none;
+}
+.brand-mark__sig {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 0 8px rgba(var(--highlight-rgb), 0.35));
+}
+.brand-mark__name { display: none; }
+@media (min-width: 720px) {
+  .brand-mark__name { display: inline; }
+}
+
+/* prefers-reduced-motion: kill all incidental animations site-
+   wide. Page-specific keyframes opt back in only where they're
+   load-bearing for the experience. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,546 @@
+---
+import StatusMark from './StatusMark.astro';
+
+type Status = 'draft' | 'revising' | 'finalized';
+
+interface Entry {
+  version: string;
+  date: Date;
+  note?: string;
+  status?: Status;
+}
+
+interface Props {
+  status: Status;
+  version: string;
+  updatedAt: Date;
+  archetype?: 'logic' | 'psyche' | 'instinct';
+  variant?: 'light' | 'dark';
+  history?: Entry[];
+  uid?: string;
+  /**
+   * 'version' (default) shows the strip as Status · v{version} · date.
+   * 'patch'   shows it as PatchLabel · date, where PatchLabel is
+   *           "In progress" for a brand-new piece (no patches yet),
+   *           "Patch N" once revisions accumulate, and "Finalized"
+   *           after the wax stamp. Inside the disclosure panel each
+   *           historical entry is labelled "Posted" (the original
+   *           publish event), "Patch N", or "Finalized" — never
+   *           "Draft". Used for all three archetypes.
+   */
+  mode?: 'version' | 'patch';
+}
+
+const {
+  status,
+  version,
+  updatedAt,
+  archetype = 'logic',
+  variant = 'light',
+  history = [],
+  uid = Math.random().toString(36).slice(2, 8),
+  mode = 'version',
+} = Astro.props;
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+// "Draft" doesn't exist as a state any more — anything that isn't
+// finalized is simply "In progress" until it has accumulated patches.
+const statusLabel = status === 'finalized' ? 'Finalized' : 'In progress';
+
+// Chronological order, oldest first — used to compute patch numbers.
+const chrono = [...history].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+// Map each chronological entry to its patch label.
+//   - Position 0          → "Posted" (the original publish event;
+//                          inside the panel this is the entry the
+//                          piece *began* as).
+//   - status==='finalized' → "Finalized".
+//   - otherwise           → "Patch N", where N is how many non-final
+//                          entries have come before this one in the
+//                          chronological order.
+function patchLabelFor(entry: Entry, chronoIdx: number): string {
+  if (entry.status === 'finalized') return 'Finalized';
+  if (chronoIdx === 0) return 'Posted';
+  let n = 0;
+  for (let i = 1; i <= chronoIdx; i++) {
+    if (chrono[i].status !== 'finalized') n += 1;
+  }
+  return `Patch ${n}`;
+}
+
+// Sorted newest-first for the panel; the first item is the current
+// state of the piece.
+const sorted = [...history].sort((a, b) => b.date.getTime() - a.date.getTime());
+// For each newest-first entry, find its chronological index so we
+// can hand it the right patch label.
+const sortedWithLabels = sorted.map((e) => {
+  const chronoIdx = chrono.findIndex((c) => c === e);
+  return { entry: e, label: patchLabelFor(e, chronoIdx) };
+});
+
+// Strip label for the *current* status. The panel labels each
+// historical entry separately ("Posted", "Patch N", "Finalized"),
+// but on the strip we want to convey current state in continuous
+// language: "Finalized" once stamped, "Patch N" if any patches
+// have landed, otherwise "In progress" (the piece is being worked
+// on, regardless of whether the original post is in the history).
+let patchLabelCurrent = statusLabel;
+if (mode === 'patch') {
+  if (status === 'finalized') {
+    patchLabelCurrent = 'Finalized';
+  } else if (sorted.length > 0) {
+    const top = sortedWithLabels[0].label;
+    // Top entry is either "Patch N" (good as-is) or "Posted" (the
+    // piece has only its initial entry — read as "In progress").
+    patchLabelCurrent = top === 'Posted' ? 'In progress' : top;
+  } else {
+    patchLabelCurrent = 'In progress';
+  }
+}
+
+// Count of *patches* — exclude the original chronological entry
+// (which is "In progress", not a patch) and any finalized entry
+// (which is the seal, not a patch).
+const patchCount = chrono.reduce((acc, e, idx) => {
+  if (idx === 0) return acc;
+  if (e.status === 'finalized') return acc;
+  return acc + 1;
+}, 0);
+
+const hasHistory = sorted.length > 0;
+const panelId = `vstamp-panel-${uid}`;
+const isPatch = mode === 'patch';
+// Toggle text differs by mode and how much history exists. In patch
+// mode we want a clear count when there are patches, and a softer
+// "view history" affordance for pieces that only have the original
+// post — so readers can always reach back to see when a piece was
+// first published.
+let panelCountLabel: string;
+if (isPatch) {
+  if (patchCount === 0) {
+    panelCountLabel = 'View history';
+  } else {
+    panelCountLabel = `${patchCount} ${patchCount === 1 ? 'patch' : 'patches'}`;
+  }
+} else {
+  panelCountLabel = `${sorted.length} ${sorted.length === 1 ? 'revision' : 'revisions'}`;
+}
+// Always surface the disclosure when there's any history at all so
+// past revisions are reachable regardless of patch count.
+const showHistoryToggle = hasHistory;
+---
+
+{/* For finalized pieces in patch mode we surface a small (i)
+    affordance next to the status that, on hover/focus, reveals
+    a tiny tooltip describing how many patches the piece went
+    through before being sealed. */}
+<div class={`vstamp vstamp--${variant} vstamp--${status}`} data-archetype={archetype} data-vstamp>
+  <div class="vstamp__strip">
+    <span class="vstamp__mark" aria-hidden="true">
+      <StatusMark status={status} size={16} />
+    </span>
+    {isPatch ? (
+      <span class="vstamp__status-group">
+        <span class="vstamp__status vstamp__status--patch">{patchLabelCurrent}</span>
+        {status === 'finalized' && (
+          <span
+            class="vstamp__patch-tip"
+            tabindex="0"
+            role="button"
+            aria-label={
+              patchCount === 0
+                ? 'Sealed straight from posting — no patches.'
+                : `Sealed after ${patchCount} ${patchCount === 1 ? 'patch' : 'patches'}.`
+            }
+            data-patch-count={patchCount}
+          >
+            <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+              <circle cx="8" cy="4.6" r="0.85" fill="currentColor"/>
+              <path d="M8 7v4.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+            </svg>
+            <span class="vstamp__patch-bubble" role="tooltip">
+              {patchCount === 0
+                ? 'Sealed straight from posting — no patches.'
+                : (
+                  <>
+                    Sealed after <strong>{patchCount}</strong>{' '}
+                    {patchCount === 1 ? 'patch' : 'patches'}.
+                  </>
+                )}
+            </span>
+          </span>
+        )}
+      </span>
+    ) : (
+      <>
+        <span class="vstamp__status">{statusLabel}</span>
+        <span class="vstamp__sep" aria-hidden="true">·</span>
+        <span class="vstamp__version">v{version}</span>
+      </>
+    )}
+    <span class="vstamp__sep" aria-hidden="true">·</span>
+    <time class="vstamp__date" datetime={updatedAt.toISOString().slice(0, 10)}>{fmt(updatedAt)}</time>
+
+    {showHistoryToggle && (
+      <>
+        <span class="vstamp__sep" aria-hidden="true">·</span>
+        <button
+          type="button"
+          class="vstamp__history-toggle"
+          aria-expanded="false"
+          aria-controls={panelId}
+        >
+          <span class="vstamp__history-text">{panelCountLabel}</span>
+          <svg class="vstamp__chev" viewBox="0 0 12 8" width="9" height="6" aria-hidden="true">
+            <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </>
+    )}
+  </div>
+
+  {showHistoryToggle && (
+    <div class="vstamp__panel" id={panelId} role="region" aria-label={isPatch ? 'Patch history' : 'Version history'} hidden>
+      <ol class="vstamp__list">
+        {sortedWithLabels.map(({ entry: e, label }, i) => (
+          <li class={`vstamp__entry ${i === 0 ? 'is-current' : ''}`}>
+            <span class="vstamp__entry-marker" aria-hidden="true">
+              <StatusMark status={e.status || 'revising'} size={12} />
+            </span>
+            <div class="vstamp__entry-row">
+              {isPatch ? (
+                <span class={`vstamp__entry-version vstamp__entry-patch ${label === 'Posted' ? 'vstamp__entry-patch--start' : label === 'Finalized' ? 'vstamp__entry-patch--final' : ''}`}>
+                  {label}
+                </span>
+              ) : (
+                <>
+                  <span class="vstamp__entry-version">v{e.version}</span>
+                  {e.status && (
+                    <span class={`vstamp__entry-status vstamp__entry-status--${e.status}`}>
+                      {e.status === 'finalized' ? 'Finalized' : 'In progress'}
+                    </span>
+                  )}
+                </>
+              )}
+              <time class="vstamp__entry-date" datetime={e.date.toISOString().slice(0, 10)}>{fmt(e.date)}</time>
+            </div>
+            {e.note && <p class="vstamp__entry-note">{e.note}</p>}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )}
+</div>
+
+<script>
+  function init() {
+    document.querySelectorAll<HTMLElement>('[data-vstamp]').forEach((root) => {
+      const btn = root.querySelector<HTMLButtonElement>('.vstamp__history-toggle');
+      const panel = root.querySelector<HTMLElement>('.vstamp__panel');
+      if (!btn || !panel) return;
+      btn.addEventListener('click', () => {
+        const open = root.classList.toggle('is-open');
+        btn.setAttribute('aria-expanded', String(open));
+        panel.hidden = !open;
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && root.classList.contains('is-open')) {
+          root.classList.remove('is-open');
+          btn.setAttribute('aria-expanded', 'false');
+          panel.hidden = true;
+        }
+      });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+</script>
+
+<style>
+  .vstamp {
+    --vs-fg: rgba(14, 14, 16, 0.78);
+    --vs-mute: rgba(14, 14, 16, 0.50);
+    --vs-faint: rgba(14, 14, 16, 0.18);
+    --vs-acc: var(--highlight, #C97E55);
+    --vs-acc-rgb: var(--highlight-rgb, 201, 126, 85);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    isolation: isolate;
+  }
+  .vstamp--dark {
+    --vs-fg: rgba(243, 236, 225, 0.85);
+    --vs-mute: rgba(243, 236, 225, 0.55);
+    --vs-faint: rgba(243, 236, 225, 0.18);
+  }
+
+  /* The strip itself — a single horizontal line of metadata, no pill,
+     no buttons. Just text with thin separators and one inline button
+     for the history toggle. */
+  .vstamp__strip {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.55em;
+    font-family: var(--font-sans);
+    line-height: 1;
+  }
+
+  .vstamp__mark {
+    align-self: center;
+    line-height: 0;
+    /* Status mark uses these tokens for color */
+    --mark-finalized: var(--vs-acc);
+    --mark-revising:  var(--vs-acc);
+    --mark-draft:     var(--vs-mute);
+  }
+
+  .vstamp__status {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--vs-fg);
+  }
+  .vstamp--finalized .vstamp__status,
+  .vstamp--revising  .vstamp__status { color: var(--vs-acc); }
+  .vstamp--draft     .vstamp__status { color: var(--vs-mute); }
+
+  /* Patch mode — the "Patch N" / "In progress" / "Finalized" label
+     uses a monospace face so it sits in the strip like a build
+     number. */
+  .vstamp__status--patch {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.14em;
+  }
+
+  /* Group the status word and its (i) affordance so they ride together
+     on the strip even when the toggle wraps to a new line on narrow
+     viewports. */
+  .vstamp__status-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  /* The (i) affordance — a small hairline circle the reader can hover
+     or focus on a finalized piece to learn how many patches it went
+     through before being sealed. The tooltip bubble is rendered
+     beneath the icon and reveals on :hover or :focus-within. */
+  .vstamp__patch-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    color: var(--vs-mute);
+    border-radius: 50%;
+    cursor: help;
+    transition: color 200ms var(--ease-out);
+  }
+  .vstamp__patch-tip:hover,
+  .vstamp__patch-tip:focus-visible { color: var(--vs-acc); outline: none; }
+  .vstamp__patch-tip:focus-visible { box-shadow: 0 0 0 2px rgba(var(--vs-acc-rgb), 0.5); }
+
+  .vstamp__patch-bubble {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translate(-50%, 4px);
+    z-index: 5;
+    /* Whitespace + min-width chosen so the bubble holds one short
+       sentence without wrapping, but never overflows narrow parents. */
+    min-width: 12em;
+    max-width: 18em;
+    padding: 0.55em 0.8em;
+    background: rgba(15, 12, 10, 0.96);
+    color: rgba(243, 236, 225, 0.92);
+    border: 1px solid rgba(var(--vs-acc-rgb), 0.4);
+    border-radius: 6px;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+    text-align: center;
+    box-shadow:
+      0 8px 22px -10px rgba(0, 0, 0, 0.7),
+      0 0 16px rgba(var(--vs-acc-rgb), 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms var(--ease-out), transform 220ms var(--ease-out);
+  }
+  .vstamp__patch-bubble strong {
+    color: var(--vs-acc);
+    font-style: normal;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  /* Tiny pointer pip beneath the bubble */
+  .vstamp__patch-bubble::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    margin-left: -4px;
+    background: rgba(15, 12, 10, 0.96);
+    border-right: 1px solid rgba(var(--vs-acc-rgb), 0.4);
+    border-bottom: 1px solid rgba(var(--vs-acc-rgb), 0.4);
+    transform: rotate(45deg) translateY(-4px);
+  }
+  .vstamp__patch-tip:hover .vstamp__patch-bubble,
+  .vstamp__patch-tip:focus-visible .vstamp__patch-bubble,
+  .vstamp__patch-tip:focus-within .vstamp__patch-bubble {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  .vstamp__entry-patch {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.06em;
+  }
+  .vstamp__entry-patch--start { color: var(--vs-mute); }
+  .vstamp__entry-patch--final { color: var(--vs-acc); }
+
+  .vstamp__sep {
+    color: var(--vs-faint);
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+
+  .vstamp__version {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--vs-fg);
+    letter-spacing: 0.02em;
+  }
+
+  .vstamp__date {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.75rem;
+    color: var(--vs-mute);
+  }
+
+  .vstamp__history-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--vs-mute);
+    font-family: var(--font-sans);
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 200ms var(--ease-out);
+  }
+  .vstamp__history-toggle:hover,
+  .vstamp__history-toggle:focus-visible {
+    color: var(--vs-acc);
+    outline: none;
+  }
+  .vstamp__history-text {
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+    text-decoration-color: var(--vs-faint);
+    text-decoration-thickness: 1px;
+  }
+  .vstamp__history-toggle:hover .vstamp__history-text,
+  .vstamp__history-toggle:focus-visible .vstamp__history-text,
+  .vstamp.is-open .vstamp__history-text {
+    text-decoration-color: var(--vs-acc);
+  }
+  .vstamp__chev { transition: transform 220ms var(--ease-out); }
+  .vstamp.is-open .vstamp__chev { transform: rotate(180deg); }
+
+  /* History panel — a clean ordered list, no card chrome.
+     Just a vertical timeline rail and entries. */
+  .vstamp__panel {
+    margin-top: 0.85rem;
+    padding: 0.5rem 0 0.2rem 0.6rem;
+    border-left: 1px dashed var(--vs-faint);
+    max-width: 480px;
+  }
+  .vstamp__panel[hidden] { display: none; }
+
+  .vstamp__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.7rem;
+  }
+  .vstamp__entry {
+    position: relative;
+    padding-left: 1.6rem;
+    font-family: var(--font-sans);
+  }
+  .vstamp__entry-marker {
+    position: absolute;
+    left: -0.05rem;
+    top: 0.05rem;
+    line-height: 0;
+    --mark-finalized: var(--vs-acc);
+    --mark-revising:  var(--vs-acc);
+    --mark-draft:     var(--vs-mute);
+  }
+  .vstamp__entry.is-current .vstamp__entry-marker {
+    filter: drop-shadow(0 0 6px rgba(var(--vs-acc-rgb), 0.55));
+  }
+
+  .vstamp__entry-row {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.55em;
+    line-height: 1;
+  }
+  .vstamp__entry-version {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--vs-acc);
+    letter-spacing: 0.02em;
+  }
+  .vstamp__entry-status {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--vs-mute);
+  }
+  .vstamp__entry-status--finalized,
+  .vstamp__entry-status--revising  { color: var(--vs-acc); opacity: 0.85; }
+  .vstamp__entry-date {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.72rem;
+    color: var(--vs-mute);
+  }
+  .vstamp__entry-note {
+    margin: 0.3rem 0 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--vs-fg);
+    max-width: 56ch;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vstamp__chev { transition: none; }
+  }
+</style>

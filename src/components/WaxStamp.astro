@@ -1,0 +1,195 @@
+---
+// Wax-stamp seal — minimalist version.
+// Just two layers:
+//   1. A wavy circular wax shape (vectorized squiggly outline) filled with
+//      the brand olive-tan (#868662).
+//   2. The MJ signature stamped on top in brand silver (#B8B2A3).
+// No gradients, no emboss, no glare. The mark is the mark.
+//
+// Two flavors share the same SVG, mostly to control where the stamp is used:
+//   variant="wax"   — full color wax + silver MJ (default)
+//   variant="seal"  — currentColor outline + currentColor MJ for places
+//                     where a flat icon-style mark reads better (small
+//                     status pills, etc.)
+interface Props {
+  /** CSS pixel size (square). */
+  size?: number;
+  /** Unique id seed for SVG defs — required if more than one stamp on a page. */
+  uid?: string;
+  /** Visually-hidden label */
+  label?: string;
+  /** Optional extra class */
+  class?: string;
+  /** "wax" = filled wax disc with silver MJ; "seal" = flat outline + MJ in currentColor */
+  variant?: 'wax' | 'seal';
+}
+const {
+  size = 48,
+  uid = 'mj',
+  label = 'Melody Jack seal',
+  class: cls = '',
+  variant = 'wax',
+} = Astro.props;
+const u = uid.replace(/[^a-zA-Z0-9_-]/g, '');
+
+// ---------------------------------------------------------------------
+// Generate an "organic wax blob" path. Real pressed-wax seals are not
+// perfect circles with regular ripples — they have irregular silhouettes
+// with lobes of varying size, a slight overall elongation, and the
+// occasional asymmetric bump where the wax pooled. We sum a handful of
+// sine harmonics with random phases (seeded so each call is stable),
+// then add a small per-angle wobble for a tactile edge.
+// ---------------------------------------------------------------------
+function mulberry32(a: number) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function organicBlob(baseR: number, seed: number, n = 128) {
+  const rand = mulberry32(Math.floor(seed * 1e6) + 1);
+  // A few sine harmonics, each with random phase + amplitude. The
+  // mix produces an irregular silhouette — never a regular polygon.
+  const harmonics = [
+    { freq: 3, amp: 1.0 + rand() * 1.2, phase: rand() * Math.PI * 2 },
+    { freq: 5, amp: 0.6 + rand() * 0.9, phase: rand() * Math.PI * 2 },
+    { freq: 7, amp: 0.4 + rand() * 0.7, phase: rand() * Math.PI * 2 },
+    { freq: 11, amp: 0.25 + rand() * 0.4, phase: rand() * Math.PI * 2 },
+  ];
+  // Slight overall elongation in a random direction so the blob is
+  // never a perfect disc. Wax beads spread; this is that.
+  const stretchAngle = rand() * Math.PI * 2;
+  const stretchAmt = 0.04 + rand() * 0.06;
+  const pts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    let r = baseR;
+    for (const h of harmonics) r += h.amp * Math.sin(t * h.freq + h.phase);
+    // Per-angle wobble — pixel-scale grit on the silhouette.
+    r += (rand() - 0.5) * 0.4;
+    // Apply directional stretch
+    const stretch = 1 + stretchAmt * Math.cos(2 * (t - stretchAngle));
+    const x = r * stretch * Math.cos(t);
+    const y = r * Math.cos(stretchAngle * 2) * 0.0 + r * Math.sin(t);
+    // (keeping the y stretch out so we don't double-elongate; the
+    // x-stretch on its own gives the slight asymmetry we want.)
+    pts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  return pts.join(' ') + ' Z';
+}
+
+// Each WaxStamp instance gets its own silhouette derived from its uid.
+// The same uid produces the same shape on every render (stable).
+function uidSeed(s: string) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 1_000_000) / 1_000_000;
+}
+const seed = uidSeed(u || 'mj');
+const discPath = organicBlob(40, seed);
+
+// Brand colors per spec
+const WAX_FILL = '#868662';   // olive-tan combined color
+const SIG_FILL = '#B8B2A3';   // silver
+---
+
+{variant === 'wax' && (
+  <span class={`waxstamp ${cls}`} role="img" aria-label={label}>
+    <svg viewBox="-50 -50 100 100" width={size} height={size} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <path id={`wax-shape-${u}`} d={discPath} />
+        <clipPath id={`disc-clip-${u}`}>
+          <use href={`#wax-shape-${u}`} />
+        </clipPath>
+        {/* Recolor the silver signature PNG to brand silver while keeping its alpha. */}
+        <filter id={`sig-tint-${u}`} color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="
+            0 0 0 0 0.722
+            0 0 0 0 0.698
+            0 0 0 0 0.639
+            0 0 0 1 0
+          " />
+        </filter>
+      </defs>
+
+      {/* Flat wax body */}
+      <use href={`#wax-shape-${u}`} fill={WAX_FILL} />
+
+      {/* Silver MJ signature, masked to the wax silhouette */}
+      <g clip-path={`url(#disc-clip-${u})`}>
+        <image
+          href="/brand/signature.png"
+          x="-27"
+          y="-26"
+          width="54"
+          height="54"
+          transform="rotate(-5)"
+          preserveAspectRatio="xMidYMid meet"
+          filter={`url(#sig-tint-${u})`}
+        />
+      </g>
+    </svg>
+  </span>
+)}
+
+{variant === 'seal' && (
+  <span class={`waxstamp waxstamp--seal ${cls}`} role="img" aria-label={label}>
+    <svg viewBox="-50 -50 100 100" width={size} height={size} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <path id={`seal-shape-${u}`} d={discPath} />
+        <clipPath id={`seal-clip-${u}`}>
+          <use href={`#seal-shape-${u}`} />
+        </clipPath>
+        {/* Flatten the silver signature to white so we can use it as a mask. */}
+        <filter id={`seal-mask-src-${u}`} color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="
+            0 0 0 0 1
+            0 0 0 0 1
+            0 0 0 0 1
+            0 0 0 1 0
+          " />
+        </filter>
+      </defs>
+
+      {/* Wavy disc filled in currentColor */}
+      <use href={`#seal-shape-${u}`} fill="currentColor" />
+
+      {/* Knock the MJ shape OUT of the disc by masking it with the
+          signature silhouette — the mark reads as "stamped" without
+          needing any second color. */}
+      <g clip-path={`url(#seal-clip-${u})`}>
+        <mask id={`sig-mask-${u}`}>
+          <rect x="-50" y="-50" width="100" height="100" fill="white" />
+          <image
+            href="/brand/signature.png"
+            x="-27"
+            y="-26"
+            width="54"
+            height="54"
+            transform="rotate(-5)"
+            preserveAspectRatio="xMidYMid meet"
+            filter={`url(#seal-mask-src-${u})`}
+          />
+        </mask>
+        <use href={`#seal-shape-${u}`} fill="currentColor" mask={`url(#sig-mask-${u})`} />
+      </g>
+    </svg>
+  </span>
+)}
+
+<style>
+  .waxstamp {
+    display: inline-block;
+    line-height: 0;
+  }
+  .waxstamp svg {
+    display: block;
+    overflow: visible;
+  }
+</style>

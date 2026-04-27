@@ -1,0 +1,120 @@
+---
+import WaxStamp from './WaxStamp.astro';
+
+type Status = 'draft' | 'revising' | 'finalized';
+
+interface Props {
+  status: Status;
+  size?: number;
+  /** Optional title/aria-label override */
+  label?: string;
+}
+
+const { status, size = 22, label } = Astro.props;
+// "Draft" is no longer a state — both `draft` and `revising` from
+// the underlying schema map to the same "In progress" mark.
+const isInProgress = status !== 'finalized';
+const ariaLabel = label || (status === 'finalized' ? 'Finalized' : 'In progress');
+
+// Tag every finalized mark with a unique uid so multiple seals on the
+// same page (e.g. an essay index listing) don't collide on their SVG defs.
+const sealUid = `fin-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+{/* IN PROGRESS — a sleek pencil mid-scribble. Used for both the
+    schema's `draft` and `revising` states, since they're the same
+    thing from a reader's perspective: not yet finalized. */}
+{isInProgress && (
+  <span class="statmark statmark--revising" role="img" aria-label={ariaLabel}>
+    <svg viewBox="-12 -12 24 24" width={size} height={size} aria-hidden="true">
+      {/* The scribble line — drawn first so the pencil sits "on top" of it.
+          Animated via stroke-dasharray to look as if it's being laid
+          down in a continuous loop. */}
+      <path
+        class="statmark__scribble"
+        d="M -10 7 Q -7 5 -5 7 T 0 7 T 5 7"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        opacity="0.85"
+      />
+      {/* Pencil group: graphite tip + ferrule + body, all rotated as
+          a single unit so the silhouette stays clean at any size. */}
+      <g transform="rotate(-40 0 0)" class="statmark__pencil">
+        {/* Body */}
+        <rect x="-1.6" y="-9" width="3.2" height="11" rx="0.6"
+              fill="currentColor" />
+        {/* Wood collar — thin gap line */}
+        <line x1="-1.6" y1="2" x2="1.6" y2="2"
+              stroke="rgba(0,0,0,0.35)" stroke-width="0.55" />
+        {/* Graphite tip */}
+        <path d="M -1.6 2 L 0 5 L 1.6 2 Z" fill="currentColor" />
+        {/* Sharp graphite point — slightly darker */}
+        <path d="M -0.7 4 L 0 5 L 0.7 4 Z" fill="rgba(0,0,0,0.55)" />
+        {/* Ferrule (eraser band) at the top */}
+        <rect x="-1.7" y="-9.7" width="3.4" height="1.6" rx="0.4"
+              fill="currentColor" opacity="0.55" />
+        {/* Eraser */}
+        <rect x="-1.4" y="-11" width="2.8" height="1.5" rx="0.5"
+              fill="currentColor" opacity="0.32" />
+      </g>
+    </svg>
+  </span>
+)}
+
+{/* FINALIZED — the brand wax stamp: a wavy olive-tan disc with the
+    MJ signature stamped in silver. Same mark across every size from
+    the small version pill (22px) to anywhere else it's reused. */}
+{status === 'finalized' && (
+  <span class="statmark statmark--finalized" role="img" aria-label={ariaLabel}>
+    <WaxStamp
+      variant="wax"
+      size={size}
+      uid={sealUid}
+      label={ariaLabel}
+    />
+  </span>
+)}
+
+<style>
+  .statmark {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+    color: var(--statmark-color, currentColor);
+  }
+
+  /* Color tokens — the host element provides the surrounding palette;
+     these tokens add semantic shading per-status without leaking everywhere. */
+  .statmark--revising  { color: var(--mark-revising,  var(--highlight, #C97E55)); }
+  .statmark--finalized { color: var(--mark-finalized, var(--highlight, #C97E55)); }
+
+  /* The finalized seal carries its own brand color, so we drop the warm
+     halo and the inherited highlight color; let the wax tones speak for
+     themselves. A tiny shadow keeps it lifted. */
+  .statmark--finalized {
+    color: inherit;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.28));
+  }
+
+  /* The pencil scribble loops in subtly: the wavy line is drawn in
+     using stroke-dasharray, then resets. The pencil itself just sits
+     at its writing angle — no rotation, no bounce — so the icon stays
+     calm at status-pill size while still suggesting active work. */
+  .statmark__scribble {
+    stroke-dasharray: 22;
+    stroke-dashoffset: 22;
+    animation: statmark-scribble 2.6s ease-in-out infinite;
+  }
+  @keyframes statmark-scribble {
+    0%   { stroke-dashoffset: 22; opacity: 0.4; }
+    35%  { stroke-dashoffset: 0;  opacity: 0.95; }
+    70%  { stroke-dashoffset: 0;  opacity: 0.95; }
+    100% { stroke-dashoffset: -22; opacity: 0.4; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .statmark__scribble { animation: none; stroke-dashoffset: 0; opacity: 0.85; }
+  }
+</style>

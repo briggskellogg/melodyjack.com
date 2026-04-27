@@ -1,0 +1,411 @@
+---
+/**
+ * Night sky — a calm but massive-feeling galaxy behind the homepage.
+ *
+ * Layers (back → front):
+ *   1. Base wash:   deep midnight gradient with a faint violet pool.
+ *   2. Nebulae:     four broad color clouds drifting on long loops.
+ *   3. Galactic disc: an elliptical, blurred core glow that suggests
+ *      the plane of a galaxy without painting any procedural arms.
+ *   4. Starfield:   ~1200 stars positioned in polar coordinates with
+ *      a slight logarithmic-spiral density bias, slowly orbiting the
+ *      center. Inner stars rotate marginally faster than outer ones
+ *      (differential rotation), so the whole field appears to wheel
+ *      together — a single galactic motion rather than parallax.
+ *
+ * No lens flare bars, no shooting stars, no procedural arm structure.
+ * Just deep, quiet rotation.
+ */
+---
+
+<div class="sky" aria-hidden="true">
+  <div class="sky__nebula sky__nebula--violet"></div>
+  <div class="sky__nebula sky__nebula--indigo"></div>
+  <div class="sky__nebula sky__nebula--rose"></div>
+  <div class="sky__nebula sky__nebula--gold"></div>
+  <div class="sky__disc"></div>
+  <div class="sky__core"></div>
+  <canvas class="sky__stars" id="skyStars"></canvas>
+  <div class="sky__vignette"></div>
+</div>
+
+<script>
+  // -----------------------------------------------------------------
+  // Galactic starfield. Each star has polar coordinates (radius, theta)
+  // around the canvas center. The whole field rotates very slowly; inner
+  // stars rotate slightly faster than outer ones (differential rotation)
+  // so the disc appears to *turn* like a real galaxy. Density is biased
+  // along a logarithmic spiral so you read structure without us ever
+  // painting visible arms. Each star also has a subtle alpha twinkle.
+  // -----------------------------------------------------------------
+  function init() {
+    const canvas = document.getElementById('skyStars') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const STAR_COUNT = 3200;
+    const TWINKLE_FRACTION = 0.22;
+    // Angular speed at radius=0 (rad/sec). The whole disc turns
+    // EXTREMELY slowly — about 1° every 4 seconds at the bright core,
+    // proportionally slower toward the rim. The motion should be
+    // perceptible only over a long stare.
+    const OMEGA0 = 0.0042;
+
+    type Star = {
+      r: number;       // radial distance, normalized 0..1 of half-min(w,h)
+      theta: number;   // current angle (radians)
+      omega: number;   // angular speed (rad/sec)
+      size: number;    // px radius
+      base: number;    // base alpha
+      tint: string;    // 'r,g,b' as plain numbers (we glue alpha at draw time)
+      amp: number;     // twinkle alpha amplitude
+      twFreq: number;  // twinkle frequency (Hz)
+      twPhase: number;
+    };
+
+    let stars: Star[] = [];
+    let dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+    let w = 0, h = 0;
+    let cx = 0, cy = 0;
+    let R = 0; // outer radius reference (px)
+    let last = performance.now();
+
+    const tints = [
+      '255,250,240',  // white
+      '255,250,240',
+      '255,250,240',
+      '255,250,240',
+      '214,226,255',  // soft blue
+      '214,226,255',
+      '180,205,255',  // cooler blue
+      '255,235,200',  // soft warm
+      '255,215,175',  // warm gold
+      '255,195,175',  // dim red giant
+    ];
+    const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
+
+    function seedStars() {
+      stars = [];
+      // Two-arm logarithmic spiral parameters. We accept points whose
+      // angular distance to the nearest arm is below a threshold —
+      // this concentrates stars along the arms without ever drawing
+      // them as a continuous line.
+      const ARMS = 2;
+      const PITCH = 0.32;        // log spiral pitch
+      const ARM_HALF_W = 0.55;   // angular tolerance (rad)
+      // Density inside core vs outside
+      const CORE_FRAC = 0.22;    // fraction of stars assigned to a tight, almost arm-free core
+
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const inCore = i < STAR_COUNT * CORE_FRAC;
+        let r: number;
+        let theta: number = 0;
+
+        if (inCore) {
+          // Tight, dense core: stars distributed with r^2 falloff
+          r = Math.pow(Math.random(), 2.0) * 0.22;
+          theta = Math.random() * Math.PI * 2;
+        } else {
+          // Disc + arms — accept-reject sampling along arms so the
+          // distribution looks like a galaxy, not a uniform disc.
+          let accepted = false;
+          let attempts = 0;
+          // Bias r toward the middle of the disc with a beta-ish shape:
+          // few stars deep core (covered above), most in the arm region,
+          // tapering toward the rim.
+          while (!accepted && attempts < 12) {
+            r = 0.18 + Math.pow(Math.random(), 0.9) * 0.92;
+            theta = Math.random() * Math.PI * 2;
+            const armAngle = Math.log(Math.max(r, 0.001)) / PITCH;
+            for (let a = 0; a < ARMS; a++) {
+              const target = (armAngle + (a / ARMS) * Math.PI * 2);
+              // wrap to (-pi, pi]
+              let dt = ((theta - target) % (Math.PI * 2));
+              if (dt > Math.PI) dt -= Math.PI * 2;
+              if (dt < -Math.PI) dt += Math.PI * 2;
+              if (Math.abs(dt) < ARM_HALF_W) { accepted = true; break; }
+            }
+            attempts++;
+          }
+          // Even if we never landed on an arm, accept it — we want some
+          // diffuse field stars too.
+          if (!accepted) {
+            r = 0.18 + Math.random() * 0.92;
+            theta = Math.random() * Math.PI * 2;
+          }
+          r = r!;
+        }
+
+        // Star size & brightness — bigger and brighter near the core.
+        const sizeRoll = Math.random();
+        const sizeBase = sizeRoll < 0.85 ? 0.4 : sizeRoll < 0.97 ? 0.85 : 1.45;
+        const size = sizeBase + (inCore ? 0.25 : 0) + Math.random() * 0.35;
+        const base = (inCore ? 0.55 : 0.30) + Math.random() * 0.45;
+
+        // Differential rotation — inner stars move faster (Keplerian-ish).
+        // We add a per-star jitter so stars at the same radius drift
+        // slightly out of phase (less mechanical look).
+        const omega = (OMEGA0 / Math.max(r, 0.05)) * (0.85 + Math.random() * 0.30);
+
+        const willTwinkle = Math.random() < TWINKLE_FRACTION;
+        stars.push({
+          r: r!,
+          theta: theta!,
+          omega,
+          size,
+          base,
+          tint: pick(tints),
+          amp: willTwinkle ? 0.12 + Math.random() * 0.20 : 0,
+          twFreq: 0.2 + Math.random() * 0.6,
+          twPhase: Math.random() * Math.PI * 2,
+        });
+      }
+    }
+
+    function resize() {
+      const rect = canvas!.getBoundingClientRect();
+      w = rect.width;
+      h = rect.height;
+      canvas!.width  = Math.round(w * dpr);
+      canvas!.height = Math.round(h * dpr);
+      canvas!.style.width = `${w}px`;
+      canvas!.style.height = `${h}px`;
+      cx = w / 2;
+      cy = h / 2;
+      // The galaxy is sized to the LONGER side so it always extends
+      // past every corner of the viewport — feels massive.
+      R = Math.max(w, h) * 0.7;
+    }
+
+    function draw(now: number, dt: number) {
+      const tSec = now / 1000;
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.clearRect(0, 0, w, h);
+
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i];
+        // Advance angle (gives the slow rotation)
+        s.theta += s.omega * dt;
+
+        const a = s.amp === 0
+          ? s.base
+          : Math.max(0.04, Math.min(1, s.base + s.amp * Math.sin(tSec * s.twFreq * Math.PI * 2 + s.twPhase)));
+        const x = cx + Math.cos(s.theta) * s.r * R;
+        // Squash the disc vertically so we view the galaxy from a
+        // slightly tilted angle — gives massive scale + perspective.
+        const y = cy + Math.sin(s.theta) * s.r * R * 0.55;
+
+        // Cull anything outside the canvas
+        if (x < -10 || x > w + 10 || y < -10 || y > h + 10) continue;
+
+        if (s.size > 1.2) {
+          const halo = ctx!.createRadialGradient(x, y, 0, x, y, s.size * 4.5);
+          halo.addColorStop(0, `rgba(${s.tint}, ${a * 0.55})`);
+          halo.addColorStop(1, `rgba(${s.tint}, 0)`);
+          ctx!.fillStyle = halo;
+          ctx!.beginPath();
+          ctx!.arc(x, y, s.size * 4.5, 0, Math.PI * 2);
+          ctx!.fill();
+        }
+        ctx!.fillStyle = `rgba(${s.tint}, ${a})`;
+        ctx!.beginPath();
+        ctx!.arc(x, y, s.size, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+    }
+
+    function tick(now: number) {
+      const dt = Math.min(0.05, (now - last) / 1000); // clamp dt on tab focus
+      last = now;
+      draw(now, dt);
+      requestAnimationFrame(tick);
+    }
+
+    function setup() {
+      dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      resize();
+      seedStars();
+      last = performance.now();
+      draw(last, 0);
+    }
+
+    setup();
+    let resizeT: number | undefined;
+    window.addEventListener('resize', () => {
+      if (resizeT) window.clearTimeout(resizeT);
+      resizeT = window.setTimeout(setup, 150);
+    });
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduceMotion) requestAnimationFrame(tick);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+</script>
+
+<style>
+  .sky {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    /* Base wash: deep midnight with a faint violet pool at center.
+       Two stops only — keeps it clean and free of banding. */
+    background:
+      radial-gradient(ellipse 70% 60% at 50% 45%, #1a1230 0%, transparent 70%),
+      linear-gradient(180deg, #06051a 0%, #04030f 60%, #020108 100%);
+  }
+
+  /* ============================================================
+     NEBULAE — four broad, low-opacity radial clouds drifting very
+     slowly. Each one is a single CSS gradient on a blurred element
+     using mix-blend-mode: screen so the colors layer like real
+     light, not paint. They never spin and they never fade in/out;
+     they just slide past each other on long, lazy loops.
+     ============================================================ */
+  .sky__nebula {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    mix-blend-mode: screen;
+    will-change: transform;
+    pointer-events: none;
+  }
+
+  .sky__nebula--violet {
+    width: 75vmax;
+    height: 75vmax;
+    top: -18vmax;
+    left: -12vmax;
+    background: radial-gradient(circle, rgba(150, 90, 200, 0.42) 0%, rgba(150, 90, 200, 0) 60%);
+    animation: sky-drift-a 90s ease-in-out infinite alternate;
+  }
+  .sky__nebula--indigo {
+    width: 85vmax;
+    height: 85vmax;
+    bottom: -28vmax;
+    right: -22vmax;
+    background: radial-gradient(circle, rgba(95, 120, 230, 0.38) 0%, rgba(95, 120, 230, 0) 60%);
+    animation: sky-drift-b 110s ease-in-out infinite alternate;
+  }
+  .sky__nebula--rose {
+    width: 60vmax;
+    height: 60vmax;
+    top: 30%;
+    right: -18vmax;
+    background: radial-gradient(circle, rgba(220, 130, 165, 0.32) 0%, rgba(220, 130, 165, 0) 60%);
+    animation: sky-drift-c 130s ease-in-out infinite alternate;
+  }
+  .sky__nebula--gold {
+    width: 55vmax;
+    height: 55vmax;
+    bottom: 8%;
+    left: -12vmax;
+    background: radial-gradient(circle, rgba(220, 180, 120, 0.26) 0%, rgba(220, 180, 120, 0) 60%);
+    animation: sky-drift-d 100s ease-in-out infinite alternate;
+  }
+
+  @keyframes sky-drift-a {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(6vmax, 4vmax, 0); }
+  }
+  @keyframes sky-drift-b {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-5vmax, -6vmax, 0); }
+  }
+  @keyframes sky-drift-c {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-4vmax, 5vmax, 0); }
+  }
+  @keyframes sky-drift-d {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(5vmax, -4vmax, 0); }
+  }
+
+  /* ============================================================
+     GALACTIC DISC — a wide, blurred elliptical glow that sits behind
+     the starfield. Reads as the plane of the galaxy without any
+     procedural lines. Tilted to match the canvas's vertical squash.
+     ============================================================ */
+  .sky__disc {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 130vmax;
+    height: 80vmax;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    background:
+      radial-gradient(
+        ellipse 50% 50% at 50% 50%,
+        rgba(255, 230, 200, 0.10) 0%,
+        rgba(180, 130, 220, 0.06) 35%,
+        rgba(80, 80, 160, 0.02) 60%,
+        transparent 80%
+      );
+    filter: blur(40px);
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+  /* Bright core glow at the galactic center — small, warm, soft. */
+  .sky__core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 22vmax;
+    height: 18vmax;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    background:
+      radial-gradient(
+        ellipse 50% 50% at 50% 50%,
+        rgba(255, 240, 215, 0.55) 0%,
+        rgba(255, 210, 180, 0.22) 30%,
+        rgba(220, 160, 200, 0.10) 55%,
+        transparent 80%
+      );
+    filter: blur(14px);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    animation: sky-core-pulse 12s ease-in-out infinite;
+  }
+  @keyframes sky-core-pulse {
+    0%, 100% { opacity: 0.85; transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+    50%      { opacity: 1; transform: translate(-50%, -50%) rotate(-12deg) scale(1.06); }
+  }
+
+  /* ============================================================
+     STARS — sits above the disc + nebulae, below the page content.
+     ============================================================ */
+  .sky__stars {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ============================================================
+     VIGNETTE — a soft darkening at the edges so the page content
+     pops out of the void. Quiet; just keeps focus near the center.
+     ============================================================ */
+  .sky__vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 80% 70% at 50% 50%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sky__nebula,
+    .sky__core { animation: none; }
+  }
+</style>

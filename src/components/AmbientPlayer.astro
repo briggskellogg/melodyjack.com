@@ -1,0 +1,492 @@
+---
+/**
+ * AmbientPlayer — a small floating "Dreaming of Melody Jack"
+ * music control that lives on every page of the site.
+ *
+ * Position: fixed bottom-left, paired against the LetterForm
+ * launcher in the bottom-right. Resting state is a small
+ * circular button with a music-note glyph; hover expands to
+ * reveal the track title and a quiet volume slider; click on
+ * the button toggles play/pause.
+ *
+ * Browser autoplay policies block audio without a user gesture,
+ * so the default first-visit state is "paused". Once the reader
+ * presses play we persist the state to localStorage and try to
+ * resume on subsequent page loads (the audio restarts at the
+ * saved currentTime so the loop feels continuous despite the
+ * full page reload between routes).
+ *
+ * State shape, written to localStorage as JSON under the key
+ * `mj-ambient-state`:
+ *   { playing: boolean, time: number, volume: number, muted: boolean }
+ */
+---
+
+<aside
+  class="ambient"
+  data-ambient
+  transition:persist="ambient-player"
+  transition:name="ambient-player"
+  aria-label="Dreaming of Melody Jack — ambient music"
+>
+  {/* Single audio element — looped indefinitely. preload="auto"
+      so the byte stream is ready when the reader presses play
+      (the file is ~4 MB; small for ambient music, fine for
+      eager loading). */}
+  <audio
+    class="ambient__audio"
+    data-ambient-audio
+    src="/audio/dreaming-of-melody-jack.mp3"
+    preload="auto"
+    loop
+  ></audio>
+
+  {/* Wrapper for the visible control. Hover or focus expands the
+      button rightward to reveal the track title + volume slider.
+      The toggle button is the always-visible left edge. */}
+  <div class="ambient__shell" data-ambient-shell>
+    <button
+      type="button"
+      class="ambient__toggle"
+      data-ambient-toggle
+      aria-label="Play Dreaming of Melody Jack"
+      aria-pressed="false"
+    >
+      {/* Music-note icon, replaced with bars when playing via CSS. */}
+      <span class="ambient__icon" aria-hidden="true">
+        <svg class="ambient__icon-note" viewBox="0 0 16 16" width="14" height="14">
+          <path
+            d="M5.5 11.5 V3.5 L13 2.2 V10"
+            stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round" stroke-linejoin="round"
+          />
+          <ellipse cx="4" cy="11.5" rx="2" ry="1.5" fill="currentColor"/>
+          <ellipse cx="11.5" cy="10" rx="2" ry="1.5" fill="currentColor"/>
+        </svg>
+        <svg class="ambient__icon-bars" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          {/* Three short vertical bars that animate to suggest sound. */}
+          <rect x="2"  y="5" width="2.2" height="6" rx="1" />
+          <rect x="6.9" y="3" width="2.2" height="10" rx="1" />
+          <rect x="11.8" y="6" width="2.2" height="4" rx="1" />
+        </svg>
+      </span>
+    </button>
+
+    {/* The expanded panel — title and a quiet horizontal volume
+        slider. Visually absent until the shell is hovered or
+        focused; transitions in via max-width + opacity. */}
+    <div class="ambient__panel" aria-hidden="true">
+      <span class="ambient__title">
+        <span class="ambient__title-eyebrow">now playing</span>
+        <span class="ambient__title-text">Dreaming of <span class="mj-silver">Melody Jack</span></span>
+      </span>
+      <label class="ambient__vol">
+        <span class="visually-hidden">Volume</span>
+        <input
+          type="range"
+          class="ambient__vol-input"
+          data-ambient-volume
+          min="0" max="100" step="1" value="55"
+          aria-label="Volume"
+        />
+      </label>
+    </div>
+  </div>
+</aside>
+
+<style>
+  .ambient {
+    position: fixed;
+    left: clamp(1rem, 3vw, 2rem);
+    bottom: clamp(1rem, 3vh, 2rem);
+    z-index: 80;
+    font-family: var(--font-sans);
+    pointer-events: auto;
+    /* Rise in subtly after the page settles, like the launcher
+       on the other side of the screen. */
+    animation: ambient-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 600ms both;
+  }
+  @keyframes ambient-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+
+  /* Hide the audio element entirely — we drive it via JS and the
+     visible toggle. */
+  .ambient__audio { display: none; }
+
+  /* The shell holds the toggle and the expandable panel side by
+     side. Resting state: just the toggle is visible. */
+  .ambient__shell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 6px 14px 6px 6px;
+    border-radius: 999px;
+    /* Soft paper halo so the control reads against any page
+       background (dark or light) without a hard pill edge. */
+    background:
+      radial-gradient(
+        ellipse 70% 75% at 28% 50%,
+        rgba(243, 236, 225, 0.65) 0%,
+        rgba(243, 236, 225, 0.30) 45%,
+        rgba(243, 236, 225, 0)    78%
+      );
+    backdrop-filter: blur(6px) saturate(1.05);
+    -webkit-backdrop-filter: blur(6px) saturate(1.05);
+    transition:
+      background 320ms var(--ease-out),
+      transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  /* On dark page surfaces the cream halo is too loud; switch to a
+     soft cool veil so the control still reads as a quiet hover. */
+  body[class*='reading-page'] .ambient__shell { /* no change */ }
+  body:not([class*='reading-page']):not(.lyric-page) .ambient__shell {
+    background:
+      radial-gradient(
+        ellipse 70% 75% at 28% 50%,
+        rgba(7, 7, 10, 0.78) 0%,
+        rgba(7, 7, 10, 0.38) 50%,
+        rgba(7, 7, 10, 0)    80%
+      );
+  }
+
+  /* TOGGLE BUTTON — circular, holds the music-note or bars icon. */
+  .ambient__toggle {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(243, 236, 225, 0.18);
+    background: rgba(7, 7, 10, 0.55);
+    color: var(--silver, #B8B2A3);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      background 220ms var(--ease-out),
+      border-color 220ms var(--ease-out),
+      color 220ms var(--ease-out);
+    isolation: isolate;
+    position: relative;
+  }
+  .ambient__toggle:hover,
+  .ambient__toggle:focus-visible {
+    border-color: rgba(var(--silver-rgb, 184, 178, 163), 0.55);
+    color: #f3ece1;
+    transform: translateY(-1px);
+    outline: none;
+  }
+  /* On reading (light) pages, swap to dark ink on warm paper. */
+  body[class*='reading-page'] .ambient__toggle {
+    background: rgba(255, 250, 238, 0.7);
+    border-color: rgba(80, 50, 30, 0.18);
+    color: #2a1f17;
+  }
+  body[class*='reading-page'] .ambient__toggle:hover,
+  body[class*='reading-page'] .ambient__toggle:focus-visible {
+    border-color: rgba(80, 50, 30, 0.45);
+    color: var(--highlight, #C97E55);
+  }
+
+  /* ICON — show the music note when paused, the animated bars
+     when playing. The .is-playing modifier on the toggle controls
+     which is visible. */
+  .ambient__icon { position: relative; display: grid; place-items: center; line-height: 0; }
+  .ambient__icon-note { display: block; }
+  .ambient__icon-bars {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    display: none;
+    fill: currentColor;
+  }
+  .ambient__toggle.is-playing .ambient__icon-note { display: none; }
+  .ambient__toggle.is-playing .ambient__icon-bars { display: block; }
+  /* When playing, the bars 'breathe' — cycling heights so they
+     look like an audio level meter. */
+  .ambient__toggle.is-playing .ambient__icon-bars rect:nth-child(1) {
+    animation: ambient-bar 1s ease-in-out infinite;
+    transform-origin: center bottom;
+  }
+  .ambient__toggle.is-playing .ambient__icon-bars rect:nth-child(2) {
+    animation: ambient-bar 1.2s ease-in-out infinite 0.15s;
+    transform-origin: center bottom;
+  }
+  .ambient__toggle.is-playing .ambient__icon-bars rect:nth-child(3) {
+    animation: ambient-bar 0.9s ease-in-out infinite 0.3s;
+    transform-origin: center bottom;
+  }
+  @keyframes ambient-bar {
+    0%, 100% { transform: scaleY(0.5); }
+    50%      { transform: scaleY(1);   }
+  }
+  /* When playing, also pulse a soft glow around the toggle so it
+     reads as 'currently making sound' even at a glance. */
+  .ambient__toggle.is-playing {
+    box-shadow:
+      0 0 0 1px rgba(var(--silver-rgb, 184, 178, 163), 0.35),
+      0 0 12px rgba(var(--silver-rgb, 184, 178, 163), 0.30);
+  }
+
+  /* EXPANDED PANEL — title + volume slider revealed on hover or
+     focus of the shell. Hidden by default via max-width: 0 +
+     opacity: 0; expanded via max-width: 320px + opacity: 1. */
+  .ambient__panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      max-width 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 240ms var(--ease-out);
+    pointer-events: none;
+  }
+  .ambient__shell:hover .ambient__panel,
+  .ambient__shell:focus-within .ambient__panel {
+    max-width: 280px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .ambient__title {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    white-space: nowrap;
+    color: rgba(243, 236, 225, 0.9);
+  }
+  body[class*='reading-page'] .ambient__title {
+    color: rgba(42, 31, 23, 0.85);
+  }
+  .ambient__title-eyebrow {
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(184, 178, 163, 0.75);
+  }
+  body[class*='reading-page'] .ambient__title-eyebrow {
+    color: rgba(42, 31, 23, 0.55);
+  }
+  .ambient__title-text {
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-style: italic;
+  }
+
+  /* VOLUME SLIDER — slim horizontal range styled to match the
+     understated control aesthetic. */
+  .ambient__vol { display: block; padding-top: 1px; }
+  .ambient__vol-input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: rgba(243, 236, 225, 0.18);
+    border-radius: 999px;
+    cursor: pointer;
+    outline: none;
+  }
+  body[class*='reading-page'] .ambient__vol-input {
+    background: rgba(80, 50, 30, 0.18);
+  }
+  .ambient__vol-input::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--silver, #B8B2A3);
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    cursor: grab;
+    transition: transform 180ms var(--ease-out), background 180ms var(--ease-out);
+  }
+  .ambient__vol-input::-webkit-slider-thumb:hover { transform: scale(1.15); }
+  .ambient__vol-input::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--silver, #B8B2A3);
+    border: 1px solid rgba(0, 0, 0, 0.45);
+    cursor: grab;
+  }
+
+  /* When the cinematic StoryCinema bar is on the page (only on
+     story routes), shift the ambient player up so the two
+     controls don't overlap at the bottom edge. */
+  body:has(.cinema) .ambient {
+    bottom: clamp(5.25rem, 10vh, 7rem);
+  }
+
+  /* Honor reduced-motion — kill the bar pulse and the rise-in. */
+  @media (prefers-reduced-motion: reduce) {
+    .ambient,
+    .ambient__toggle.is-playing .ambient__icon-bars rect { animation: none; }
+  }
+
+  /* On very narrow screens, leave only the toggle and let the
+     hover expansion do its thing. */
+  @media (max-width: 480px) {
+    .ambient__shell:hover .ambient__panel,
+    .ambient__shell:focus-within .ambient__panel { max-width: 220px; }
+    .ambient__title-text { font-size: 0.72rem; }
+  }
+</style>
+
+<script>
+  /**
+   * Ambient player wiring. One audio element, one toggle button,
+   * one volume slider — plus a small persistence layer so the
+   * playing state, current time, and volume survive page
+   * navigations within the site (every page is a full reload on
+   * an SSG, so we save state on change and restore it on load).
+   */
+  const STORAGE_KEY = 'mj-ambient-state';
+  const SAVE_INTERVAL_MS = 4000;        // throttle currentTime writes
+
+  type State = {
+    playing: boolean;
+    time: number;
+    volume: number;     // 0..1
+    muted: boolean;
+  };
+
+  function readState(): State {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { playing: false, time: 0, volume: 0.55, muted: false };
+      const s = JSON.parse(raw) as Partial<State>;
+      return {
+        playing: !!s.playing,
+        time: typeof s.time === 'number' && isFinite(s.time) ? s.time : 0,
+        volume: typeof s.volume === 'number' && isFinite(s.volume)
+          ? Math.max(0, Math.min(1, s.volume))
+          : 0.55,
+        muted: !!s.muted,
+      };
+    } catch {
+      return { playing: false, time: 0, volume: 0.55, muted: false };
+    }
+  }
+
+  function writeState(state: State) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch { /* ignore */ }
+  }
+
+  function init() {
+    const root = document.querySelector<HTMLElement>('[data-ambient]');
+    if (!root) return;
+    // Guard against double-binding. The aside persists across view
+    // transitions, but the inline <script> tag re-runs on every
+    // navigation — without this guard we'd attach a new pair of
+    // toggle / volume / timeupdate / pagehide listeners on every
+    // page change.
+    if (root.dataset.ambientReady === '1') return;
+    root.dataset.ambientReady = '1';
+
+    const audio = root.querySelector<HTMLAudioElement>('[data-ambient-audio]');
+    const toggle = root.querySelector<HTMLButtonElement>('[data-ambient-toggle]');
+    const volEl = root.querySelector<HTMLInputElement>('[data-ambient-volume]');
+    if (!audio || !toggle || !volEl) return;
+
+    const state = readState();
+    audio.volume = state.volume;
+    audio.muted = state.muted;
+    volEl.value = String(Math.round(state.volume * 100));
+
+    // Seek to the saved position. If the audio hasn't loaded
+    // metadata yet, defer until it does.
+    function seekToSaved() {
+      try {
+        if (state.time > 0 && audio!.duration && state.time < audio!.duration) {
+          audio!.currentTime = state.time;
+        }
+      } catch { /* ignore */ }
+    }
+    if (audio.readyState >= 1) seekToSaved();
+    else audio.addEventListener('loadedmetadata', seekToSaved, { once: true });
+
+    function setPlayingUi(playing: boolean) {
+      toggle!.classList.toggle('is-playing', playing);
+      toggle!.setAttribute('aria-pressed', String(playing));
+      toggle!.setAttribute(
+        'aria-label',
+        playing ? 'Pause Dreaming of Melody Jack' : 'Play Dreaming of Melody Jack',
+      );
+    }
+
+    async function tryAutoresume() {
+      if (!state.playing) return;
+      try {
+        await audio!.play();
+        setPlayingUi(true);
+      } catch {
+        // Browser blocked autoplay — leave UI in paused state.
+        // The reader can press the toggle to start it manually.
+        setPlayingUi(false);
+      }
+    }
+    tryAutoresume();
+
+    // ---- Toggle ----
+    toggle.addEventListener('click', async () => {
+      if (audio.paused) {
+        try {
+          await audio.play();
+          setPlayingUi(true);
+          state.playing = true;
+          writeState(state);
+        } catch {
+          setPlayingUi(false);
+        }
+      } else {
+        audio.pause();
+        setPlayingUi(false);
+        state.playing = false;
+        writeState(state);
+      }
+    });
+
+    // ---- Volume ----
+    volEl.addEventListener('input', () => {
+      const v = Math.max(0, Math.min(1, parseInt(volEl.value, 10) / 100));
+      audio.volume = v;
+      audio.muted = v === 0;
+      state.volume = v;
+      state.muted = v === 0;
+      writeState(state);
+    });
+
+    // ---- Persist current time periodically while playing. ----
+    let lastSave = 0;
+    audio.addEventListener('timeupdate', () => {
+      const now = Date.now();
+      if (now - lastSave < SAVE_INTERVAL_MS) return;
+      lastSave = now;
+      state.time = audio.currentTime;
+      state.playing = !audio.paused;
+      writeState(state);
+    });
+
+    // ---- Persist on unload too (catches the case where the
+    // reader navigates within seconds of the last timeupdate). ----
+    window.addEventListener('pagehide', () => {
+      state.time = audio.currentTime;
+      state.playing = !audio.paused;
+      writeState(state);
+    });
+  }
+
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', init);
+  else init();
+  // Re-run on view-transition navigation. The init() guard above
+  // makes this safe even though the persisted player only needs
+  // wiring once.
+  document.addEventListener('astro:page-load', init);
+</script>

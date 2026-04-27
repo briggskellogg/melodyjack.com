@@ -1,0 +1,757 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import NoteCard from '~/components/NoteCard.astro';
+
+const all = await getCollection('cards');
+
+// Render each card's MDX body once on the server so the modal
+// can pick it up from the hidden source-of-truth dump below.
+const rendered = await Promise.all(
+  all.map(async (card) => {
+    const { Content } = await card.render();
+    return { card, Content };
+  }),
+);
+
+// =====================================================================
+// Loose-stars layout — Poisson-disk-style scatter on a fixed-width
+// reference field, projected to viewport %. Cards sit still at rest;
+// the proximity engine in the script lifts them as the cursor approaches.
+// =====================================================================
+const FIELD_TOP_PX     = 200;
+const FIELD_BOTTOM_PX  = 160;
+const FIELD_REF_W      = 1400;
+const MIN_SPACING_PX   = 260;
+const PLACE_ATTEMPTS   = 90;
+
+function mulberry32(seed: number) {
+  return function () {
+    seed = (seed + 0x6D2B79F5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffled<T>(arr: T[], seed: number): T[] {
+  const rand = mulberry32(seed);
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+type PxPos = { xPx: number; yPx: number };
+function scatterPositions(count: number, fieldHeightPx: number, seed: number): PxPos[] {
+  const rand = mulberry32(seed);
+  const margin = MIN_SPACING_PX * 0.45;
+  const xMin = margin;
+  const xMax = FIELD_REF_W - margin;
+  const yMin = FIELD_TOP_PX;
+  const yMax = fieldHeightPx - FIELD_BOTTOM_PX;
+  const placed: PxPos[] = [];
+  for (let i = 0; i < count; i++) {
+    let best: PxPos | null = null;
+    let bestNearest = -Infinity;
+    for (let attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
+      const xPx = xMin + rand() * (xMax - xMin);
+      const yPx = yMin + rand() * (yMax - yMin);
+      let nearest = Infinity;
+      for (const p of placed) {
+        const dx = p.xPx - xPx;
+        const dy = p.yPx - yPx;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < nearest) nearest = d;
+      }
+      if (nearest > bestNearest) {
+        bestNearest = nearest;
+        best = { xPx, yPx };
+        if (nearest >= MIN_SPACING_PX * 1.15) break;
+      }
+    }
+    if (best) placed.push(best);
+  }
+  return placed;
+}
+
+const order = shuffled(rendered, 0xC0FFEE);
+const total = order.length;
+const areaPerCard = (MIN_SPACING_PX * 1.10) ** 2;
+const usableHeight = Math.max(MIN_SPACING_PX * 3, (total * areaPerCard) / FIELD_REF_W);
+const fieldHeightPx = FIELD_TOP_PX + Math.round(usableHeight) + FIELD_BOTTOM_PX;
+const positions = scatterPositions(total, fieldHeightPx, 0x1DEA5);
+
+// Assemble the placed list. Each card gets its scatter position
+// + a small per-card resting tilt (deterministic by index).
+const placed = order.map((r, idx) => {
+  const p = positions[idx] || { xPx: FIELD_REF_W / 2, yPx: FIELD_TOP_PX + idx * MIN_SPACING_PX };
+  const rot = ((idx * 137) % 19) - 9; // -9..+9 deg
+  return {
+    card: r.card,
+    Content: r.Content,
+    x: Math.max(2, Math.min(98, (p.xPx / FIELD_REF_W) * 100)),
+    yPx: p.yPx,
+    rot,
+    idx,
+  };
+});
+
+const counts = {
+  total,
+  logic:    all.filter((c) => c.data.archetype === 'logic').length,
+  psyche:   all.filter((c) => c.data.archetype === 'psyche').length,
+  instinct: all.filter((c) => c.data.archetype === 'instinct').length,
+};
+---
+
+<BaseLayout
+  title="Loose Stars"
+  description="A working notebook of cards Melody Jack is thinking about — seeds for essays, lyrics, and stories. Each card carries its date and patch state; the wax stamp arrives only when a card is sealed."
+  bodyClass="page-notebook"
+>
+  <section class="loose">
+    <header class="loose__head">
+      <p class="eyebrow">Notebook</p>
+      <h1 class="loose__title">
+        <span>Loose</span><span class="loose__title-em">Stars</span>
+      </h1>
+      <p class="loose__lede">
+        Working notes — every card a seed for an essay, a lyric, or a story.
+        Each one has a date, a patch state, and (eventually) a wax stamp.
+        Hover or tap to open.
+      </p>
+      <p class="loose__count">
+        {counts.total} cards ·
+        <span class="loose__count-arch" data-arch="logic">{counts.logic} logic</span> ·
+        <span class="loose__count-arch" data-arch="psyche">{counts.psyche} psyche</span> ·
+        <span class="loose__count-arch" data-arch="instinct">{counts.instinct} instinct</span>
+      </p>
+    </header>
+
+    <div class="loose__field" style={`--field-h:${fieldHeightPx}px;`}>
+      {placed.map(({ card, Content, x, yPx, rot, idx }) => (
+        <div
+          class="loose__slot"
+          style={`--x:${x.toFixed(2)}%; --y:${yPx}px; --rot:${rot}deg;`}
+          data-slot
+        >
+          <NoteCard card={card} index={idx} />
+          <div class="loose__body" hidden>
+            <Content />
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {/* MODAL — same shared dialog the field cards open into. */}
+    <div
+      class="loose__modal"
+      id="notebookModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="looseModalSeed"
+      hidden
+    >
+      <button
+        type="button"
+        class="loose__modal-backdrop"
+        data-note-close
+        aria-label="Close"
+      ></button>
+      <article class="loose__panel" data-note-card>
+        <header class="loose__panel-head">
+          <span class="loose__panel-chip" data-arch>
+            <span class="loose__panel-chip-dot" aria-hidden="true"></span>
+            <span data-arch-text>Logic</span>
+          </span>
+          <span class="loose__panel-aim" data-aim>essay</span>
+          <span class="loose__panel-stamp" data-stamp aria-hidden="true"></span>
+          <button
+            type="button"
+            class="loose__panel-close"
+            data-note-close
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path d="M6 6l12 12M6 18L18 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </header>
+        <h2 class="loose__panel-seed" id="looseModalSeed" data-seed></h2>
+        <div class="loose__panel-meta">
+          <span data-meta-seeded></span>
+          <span data-meta-touched></span>
+          <span class="loose__panel-state" data-state>
+            <span class="loose__panel-state-glyph" data-state-glyph aria-hidden="true"></span>
+            <span data-state-label></span>
+          </span>
+        </div>
+        <span class="loose__panel-rule" aria-hidden="true"></span>
+        <div class="loose__panel-body" data-body></div>
+      </article>
+    </div>
+  </section>
+</BaseLayout>
+
+<script>
+  function init() {
+    const modal = document.getElementById('notebookModal');
+    if (!modal) return;
+    const card = modal.querySelector<HTMLElement>('[data-note-card]');
+    const archEl = modal.querySelector<HTMLElement>('[data-arch]');
+    const archText = modal.querySelector<HTMLElement>('[data-arch-text]');
+    const aimEl = modal.querySelector<HTMLElement>('[data-aim]');
+    const stampEl = modal.querySelector<HTMLElement>('[data-stamp]');
+    const seedEl = modal.querySelector<HTMLElement>('[data-seed]');
+    const seededEl = modal.querySelector<HTMLElement>('[data-meta-seeded]');
+    const touchedEl = modal.querySelector<HTMLElement>('[data-meta-touched]');
+    const stateGlyph = modal.querySelector<HTMLElement>('[data-state-glyph]');
+    const stateLabel = modal.querySelector<HTMLElement>('[data-state-label]');
+    const bodyEl = modal.querySelector<HTMLElement>('[data-body]');
+    if (!card || !archEl || !archText || !aimEl || !seedEl || !bodyEl) return;
+
+    let activeNote: HTMLElement | null = null;
+    let lastFocus: HTMLElement | null = null;
+
+    function open(note: HTMLElement) {
+      activeNote = note;
+      lastFocus = document.activeElement as HTMLElement;
+
+      const btn = note.querySelector<HTMLElement>('[data-note-open]')!;
+      const arch = btn.dataset.noteArchetype || 'triune';
+      const aim  = btn.dataset.noteAim || '';
+      const seed = btn.dataset.noteSeed || '';
+      const seeded = btn.dataset.noteSeeded || '';
+      const touched = btn.dataset.noteTouched || '';
+      const state = btn.dataset.noteState || '';
+      const glyph = btn.dataset.noteStateGlyph || '';
+      const label = btn.dataset.noteStateLabel || '';
+
+      // Find the body source for this note (rendered MDX kept in a
+      // hidden sibling div).
+      const slot = note.closest('[data-slot]');
+      const src = slot?.querySelector<HTMLElement>('.loose__body');
+
+      card!.setAttribute('data-archetype', arch);
+      card!.setAttribute('data-state', state);
+      archText!.textContent = arch.charAt(0).toUpperCase() + arch.slice(1);
+      archEl!.setAttribute('data-archetype', arch);
+      aimEl!.textContent = aim;
+      seedEl!.textContent = seed;
+      seededEl!.textContent = seeded ? `seeded · ${seeded}` : '';
+      touchedEl!.textContent =
+        touched && touched !== seeded ? `touched · ${touched}` : '';
+      if (stateGlyph) stateGlyph.textContent = glyph;
+      if (stateLabel) stateLabel.textContent = label;
+      // Stamp only on finalized
+      if (stampEl) {
+        stampEl.innerHTML = state === 'finalized'
+          ? '<span class="loose__panel-stamp-mark" aria-hidden="true">✦</span>'
+          : '';
+      }
+      bodyEl!.innerHTML = src ? src.innerHTML : '';
+      bodyEl!.scrollTop = 0;
+
+      // Capture origin for the fly-from-source animation.
+      const r = note.getBoundingClientRect();
+      const cardCx = r.left + r.width / 2;
+      const cardCy = r.top + r.height / 2;
+      const winCx = window.innerWidth / 2;
+      const winCy = window.innerHeight / 2;
+      const dx = cardCx - winCx;
+      const dy = cardCy - winCy;
+      let rot = 0;
+      try {
+        const m = new DOMMatrixReadOnly(getComputedStyle(note).transform);
+        rot = Math.atan2(m.b, m.a) * (180 / Math.PI);
+      } catch { /* ignore */ }
+      modal!.style.setProperty('--origin-x', `${cardCx}px`);
+      modal!.style.setProperty('--origin-y', `${cardCy}px`);
+      card!.style.setProperty('--from-x', `${dx.toFixed(1)}px`);
+      card!.style.setProperty('--from-y', `${dy.toFixed(1)}px`);
+      card!.style.setProperty('--from-rot', `${rot.toFixed(2)}deg`);
+
+      modal!.hidden = false;
+      void modal!.offsetWidth;
+      modal!.classList.add('is-open');
+      note.classList.add('is-active');
+      btn.setAttribute('aria-expanded', 'true');
+      document.body.classList.add('notebook-locked');
+
+      setTimeout(() => {
+        (modal!.querySelector('[data-note-close]') as HTMLElement | null)?.focus({ preventScroll: true });
+      }, 280);
+    }
+
+    function close() {
+      if (!modal!.classList.contains('is-open')) return;
+      modal!.classList.remove('is-open');
+      activeNote?.classList.remove('is-active');
+      activeNote?.querySelector('[data-note-open]')?.setAttribute('aria-expanded', 'false');
+      document.body.classList.remove('notebook-locked');
+      const finish = () => {
+        modal!.hidden = true;
+        modal!.removeEventListener('transitionend', finish);
+        lastFocus?.focus?.({ preventScroll: true });
+        activeNote = null;
+      };
+      modal!.addEventListener('transitionend', finish, { once: true });
+      setTimeout(finish, 600);
+    }
+
+    document.querySelectorAll<HTMLButtonElement>('[data-note-open]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const note = btn.closest('.note') as HTMLElement | null;
+        if (!note) return;
+        if (note === activeNote) { close(); return; }
+        if (activeNote) close();
+        requestAnimationFrame(() => open(note));
+      });
+    });
+    modal.querySelectorAll<HTMLButtonElement>('[data-note-close]').forEach((b) => {
+      b.addEventListener('click', close);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
+
+    // ---- proximity + parting (cursor → tilt + push siblings) ----
+    const fieldEl = document.querySelector<HTMLElement>('.loose__field');
+    const slotEls = Array.from(document.querySelectorAll<HTMLElement>('.loose__slot'));
+    if (!fieldEl || !slotEls.length) return;
+
+    const PROX_R = 280;
+    const PART_R = 260;
+    const PART_PX = 18;
+    let activeCard: HTMLElement | null = null;
+    let mx = -9999, my = -9999;
+    let raf = 0;
+    let pointerInside = false;
+
+    function paint() {
+      raf = 0;
+      let acx = 0, acy = 0, hasActive = false;
+      if (activeCard) {
+        const ar = activeCard.getBoundingClientRect();
+        acx = ar.left + ar.width / 2;
+        acy = ar.top + ar.height / 2;
+        hasActive = true;
+      }
+      for (const slot of slotEls) {
+        const rect = slot.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const halfW = Math.max(1, rect.width / 2);
+        const halfH = Math.max(1, rect.height / 2);
+
+        const dx = mx - cx;
+        const dy = my - cy;
+        const d = Math.hypot(dx, dy);
+        const norm = Math.min(1, d / PROX_R);
+        const prox = pointerInside ? Math.max(0, 1 - norm * norm) : 0;
+        const ncx = Math.max(-1.4, Math.min(1.4, dx / halfW));
+        const ncy = Math.max(-1.4, Math.min(1.4, dy / halfH));
+
+        slot.style.setProperty('--prox', prox.toFixed(3));
+        slot.style.setProperty('--cx', ncx.toFixed(3));
+        slot.style.setProperty('--cy', ncy.toFixed(3));
+
+        let px = 0, py = 0;
+        if (hasActive && activeCard !== slot) {
+          const adx = cx - acx;
+          const ady = cy - acy;
+          const adist = Math.hypot(adx, ady);
+          if (adist < PART_R && adist > 1) {
+            const t = 1 - adist / PART_R;
+            const amt = PART_PX * t * t;
+            px = (adx / adist) * amt;
+            py = (ady / adist) * amt;
+          }
+        }
+        slot.style.setProperty('--push-x', `${px.toFixed(2)}px`);
+        slot.style.setProperty('--push-y', `${py.toFixed(2)}px`);
+
+        // Forward --prox onto the .note inside so the card face's
+        // shadow / brightness can read it.
+        const noteEl = slot.querySelector<HTMLElement>('.note');
+        if (noteEl) noteEl.style.setProperty('--prox', prox.toFixed(3));
+      }
+    }
+    function schedule() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(paint);
+    }
+    function release() {
+      pointerInside = false;
+      schedule();
+    }
+
+    window.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      pointerInside = true;
+      mx = e.clientX;
+      my = e.clientY;
+      schedule();
+    }, { passive: true });
+    window.addEventListener('pointerleave', release);
+    window.addEventListener('scroll', () => {
+      if (!pointerInside) return;
+      schedule();
+    }, { passive: true });
+
+    for (const slot of slotEls) {
+      slot.addEventListener('mouseenter', () => {
+        activeCard = slot;
+        const noteEl = slot.querySelector<HTMLElement>('.note');
+        if (noteEl) noteEl.dataset.active = 'true';
+        schedule();
+      });
+      slot.addEventListener('mouseleave', () => {
+        if (activeCard === slot) activeCard = null;
+        const noteEl = slot.querySelector<HTMLElement>('.note');
+        if (noteEl) delete noteEl.dataset.active;
+        schedule();
+      });
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+</script>
+
+<style>
+  .loose {
+    position: relative;
+    z-index: 1;
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: clamp(5rem, 10dvh, 8rem) clamp(1.25rem, 4vw, 3rem) var(--space-9);
+  }
+  .loose__head { text-align: center; max-width: 60ch; margin: 0 auto var(--space-7); }
+  .loose__title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(2.25rem, 5vw + 1rem, 4rem);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    margin: 0.5rem 0 1rem;
+    color: var(--warm-white);
+  }
+  .loose__title span { display: inline-block; }
+  .loose__title-em {
+    font-style: italic;
+    background: linear-gradient(
+      90deg,
+      rgba(var(--logic-glow), 0.95),
+      rgba(var(--instinct-glow), 0.95),
+      rgba(var(--psyche-glow), 0.95)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-left: 0.4rem;
+  }
+  .loose__lede {
+    margin: 0 auto;
+    max-width: 56ch;
+    font-family: var(--font-serif);
+    font-style: italic;
+    color: var(--warm-white-dim);
+    line-height: 1.55;
+  }
+  .loose__count {
+    margin-top: 1rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    color: var(--warm-white-faint);
+  }
+  .loose__count-arch[data-arch='logic']    { color: rgb(var(--logic-glow)); }
+  .loose__count-arch[data-arch='psyche']   { color: rgb(var(--psyche-glow)); }
+  .loose__count-arch[data-arch='instinct'] { color: rgb(var(--instinct-glow)); }
+
+  /* SCATTERED FIELD */
+  .loose__field {
+    position: relative;
+    height: var(--field-h, 1800px);
+    min-height: 1200px;
+    margin-top: clamp(2.5rem, 6dvh, 4.5rem);
+  }
+  .loose__slot {
+    --prox: 0;
+    --cx: 0;
+    --cy: 0;
+    --push-x: 0px;
+    --push-y: 0px;
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: clamp(200px, 16vw, 260px);
+    transform:
+      translate(-50%, -50%)
+      translate(var(--push-x), var(--push-y));
+    transition: transform 280ms cubic-bezier(0.2, 0.85, 0.25, 1);
+    z-index: 1;
+    will-change: transform;
+  }
+  .loose__slot:hover { z-index: 50; }
+  .loose__slot .note {
+    transform-origin: center;
+    transform-style: preserve-3d;
+    transform:
+      perspective(900px)
+      rotate(var(--rot, 0deg))
+      rotateY(calc(var(--cx) * var(--prox) * -9deg))
+      rotateX(calc(var(--cy) * var(--prox) *  7deg))
+      translateY(calc(var(--prox) * -7px))
+      scale(calc(1 + var(--prox) * 0.045));
+    transition: transform 110ms cubic-bezier(0.18, 0.9, 0.3, 1);
+    will-change: transform;
+  }
+  .loose__slot .note[data-active='true'] {
+    transform:
+      perspective(900px)
+      rotate(calc(var(--rot, 0deg) * 0.25))
+      rotateY(calc(var(--cx) * -7deg))
+      rotateX(calc(var(--cy) *  5deg))
+      translateY(-12px)
+      scale(1.075);
+    transition: transform 240ms cubic-bezier(0.16, 0.9, 0.25, 1.04);
+  }
+
+  /* hidden body source feeds the modal */
+  .loose__body { display: none; }
+
+  /* MODAL */
+  .loose__modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: clamp(1rem, 4dvh, 2.5rem) clamp(1rem, 4vw, 2.5rem);
+    overflow-y: auto;
+    opacity: 0;
+    transition: opacity 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    --origin-x: 50%;
+    --origin-y: 50%;
+  }
+  .loose__modal[hidden] { display: none; }
+  .loose__modal.is-open { opacity: 1; }
+  .loose__modal-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    cursor: zoom-out;
+    background: radial-gradient(
+      circle at var(--origin-x) var(--origin-y),
+      rgba(20, 12, 30, 0.30) 0%,
+      rgba(8, 5, 18, 0.78) 38%,
+      rgba(4, 3, 10, 0.95) 80%
+    );
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: scale(0.9);
+    transform-origin: var(--origin-x) var(--origin-y);
+    transition:
+      opacity 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .loose__modal.is-open .loose__modal-backdrop { opacity: 1; transform: scale(1); }
+
+  .loose__panel {
+    --paper: #FBE9C4;
+    --paper-edge: #E8C98A;
+    --border: rgba(122, 80, 24, 0.32);
+    --rule: rgba(122, 80, 24, 0.20);
+    --ink: #2c1c08;
+    --ink-mute: rgba(44, 28, 8, 0.62);
+    --accent: #7d4326;
+    --chip: rgba(122, 80, 24, 0.18);
+    position: relative;
+    z-index: 1;
+    width: min(640px, 100%);
+    max-height: calc(100dvh - clamp(2rem, 8dvh, 5rem));
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--paper) 0%, var(--paper-edge) 100%);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: clamp(1.4rem, 3vw, 2rem) clamp(1.5rem, 3.5vw, 2.4rem) clamp(1.5rem, 3vw, 2rem);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 60px 100px -40px rgba(0, 0, 0, 0.7);
+    --from-x: 0px;
+    --from-y: 0px;
+    --from-rot: 0deg;
+    transform-origin: 50% 50%;
+    transform: translate(var(--from-x), var(--from-y)) rotate(var(--from-rot)) scale(0.32);
+    opacity: 0;
+    transition:
+      transform 580ms cubic-bezier(0.16, 0.84, 0.24, 1.02),
+      opacity 320ms cubic-bezier(0.4, 0, 0.2, 1);
+    isolation: isolate;
+  }
+  .loose__modal.is-open .loose__panel { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+  .loose__panel[data-archetype='psyche'] {
+    --paper: #1f2837;
+    --paper-edge: #10141d;
+    --border: rgba(255, 213, 132, 0.22);
+    --rule: rgba(255, 213, 132, 0.18);
+    --ink: #f3ece1;
+    --ink-mute: rgba(243, 236, 225, 0.62);
+    --accent: #e5c68f;
+    --chip: rgba(255, 213, 132, 0.16);
+  }
+  .loose__panel[data-archetype='instinct'] {
+    --paper: #3a1d22;
+    --paper-edge: #22090e;
+    --border: rgba(220, 170, 175, 0.22);
+    --rule: rgba(220, 170, 175, 0.18);
+    --ink: #fbe8e8;
+    --ink-mute: rgba(251, 232, 232, 0.62);
+    --accent: #e0a4a8;
+    --chip: rgba(220, 170, 175, 0.18);
+  }
+  .loose__panel-head {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 0.7rem;
+  }
+  .loose__panel-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .loose__panel-chip-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--chip);
+    box-shadow: 0 0 6px var(--chip), 0 0 0 1px var(--border);
+  }
+  .loose__panel-aim {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    color: var(--ink-mute);
+  }
+  .loose__panel-stamp {
+    color: var(--accent);
+    font-size: 1.4rem;
+    line-height: 1;
+    text-shadow: 0 0 12px rgba(0,0,0,0.25);
+  }
+  .loose__panel-stamp-mark { display: inline-block; }
+  .loose__panel-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.45);
+    color: var(--ink-mute);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition:
+      color 220ms var(--ease-out),
+      border-color 220ms var(--ease-out),
+      background 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+  }
+  .loose__panel-close:hover,
+  .loose__panel-close:focus-visible {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.85);
+    transform: rotate(90deg);
+    outline: none;
+  }
+  .loose__panel-seed {
+    margin: 0;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: clamp(1.4rem, 1.4vw + 1.05rem, 1.85rem);
+    line-height: 1.2;
+    color: var(--ink);
+  }
+  .loose__panel-meta {
+    margin-top: 0.85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-mute);
+  }
+  .loose__panel-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .loose__panel-state-glyph {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+  }
+  .loose__panel-rule {
+    display: block;
+    height: 1px;
+    margin: 1rem 0 1.2rem;
+    background: linear-gradient(90deg, transparent, var(--rule) 25%, var(--rule) 75%, transparent);
+  }
+  .loose__panel-body {
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--ink);
+  }
+  .loose__panel-body :global(p) { margin: 0 0 0.95em; }
+  .loose__panel-body :global(p:last-child) { margin-bottom: 0; }
+  .loose__panel-body :global(em) { font-style: italic; }
+  .loose__panel-body :global(strong) { font-weight: 600; color: var(--accent); }
+
+  body.notebook-locked { overflow: hidden; }
+
+  /* Mobile — stack the field instead of scattering. */
+  @media (max-width: 880px) {
+    .loose__field {
+      position: relative;
+      height: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .loose__slot {
+      position: relative;
+      left: auto !important;
+      top: auto !important;
+      transform: none !important;
+      width: 100% !important;
+    }
+    .loose__slot .note { transform: none !important; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loose__modal,
+    .loose__panel { transition: none !important; }
+  }
+</style>

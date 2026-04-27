@@ -1,0 +1,15 @@
+.DS_Store
+node_modules
+.env
+.env.*
+!.env.example
+dist
+.astro
+.cache
+.vercel
+.netlify
+
+# Cursor / agent worktrees
+.claude
+.cursor
+.screenshots

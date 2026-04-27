@@ -1,0 +1,406 @@
+---
+/**
+ * NoteCard — the redesigned loose-stars card per the rebuild
+ * brief §2. Anatomy, top to bottom:
+ *
+ *   ┌── top rail ─────────────────────────────────┐
+ *   │ [archetype chip]   [aim]      [stamp slot]  │
+ *   │ Seed (1–2 lines)                            │
+ *   │ Preview (clamped to 3 lines, ink-mute)      │
+ *   │ ──── hairline rule ───────────────────────  │
+ *   │ seeded · YYYY.MM.DD   touched · YYYY.MM.DD  │
+ *   │ ◐ patch 2                            Open → │
+ *   └─────────────────────────────────────────────┘
+ *
+ * State machine:
+ *   draft → in-progress → patch-1..N → finalized
+ *
+ * The wax seal renders only when state === 'finalized'.
+ */
+import WaxStamp from './WaxStamp.astro';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  card: CollectionEntry<'cards'>;
+  index?: number;
+}
+const { card, index = 0 } = Astro.props;
+const d = card.data;
+const isFinal = d.state === 'finalized';
+
+// State glyph + label, per the brief.
+const stateMap: Record<string, { glyph: string; label: string; pulse?: boolean }> = {
+  draft:        { glyph: '○',  label: 'draft' },
+  'in-progress':{ glyph: '◐',  label: 'in progress', pulse: true },
+  'patch-1':    { glyph: '◔',  label: 'patch 1' },
+  'patch-2':    { glyph: '◑',  label: 'patch 2' },
+  'patch-3':    { glyph: '◕',  label: 'patch 3' },
+  'patch-4':    { glyph: '●',  label: 'patch 4' },
+  'patch-5':    { glyph: '●',  label: 'patch 5' },
+  finalized:    { glyph: '✦',  label: 'finalized' },
+};
+const st = stateMap[d.state] || stateMap.draft;
+const seededTouchedSame = d.seeded === d.touched;
+---
+
+<article
+  class="note"
+  data-archetype={d.archetype}
+  data-state={d.state}
+  data-aim={d.aim}
+  data-slug={card.slug}
+  data-index={index}
+>
+  <button
+    class="note__face"
+    type="button"
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    aria-controls="notebookModal"
+    data-note-open
+    data-note-title={d.title}
+    data-note-seed={d.seed}
+    data-note-archetype={d.archetype}
+    data-note-aim={d.aim}
+    data-note-state={d.state}
+    data-note-state-glyph={st.glyph}
+    data-note-state-label={st.label}
+    data-note-seeded={d.seeded}
+    data-note-touched={d.touched}
+  >
+    {/* TOP RAIL — chip + aim + stamp slot */}
+    <header class="note__top">
+      <span class="note__chip">
+        <span class="note__chip-dot" aria-hidden="true"></span>
+        <span class="note__chip-text">
+          {d.archetype.charAt(0).toUpperCase() + d.archetype.slice(1)}
+        </span>
+      </span>
+      <span class="note__aim">{d.aim}</span>
+      <span class="note__stamp" aria-hidden="true">
+        {isFinal && <WaxStamp size={28} uid={`stamp-${card.slug}`} label="" />}
+      </span>
+    </header>
+
+    <p class="note__seed">{d.seed}</p>
+
+    <p class="note__preview">{d.preview}</p>
+
+    <span class="note__rule" aria-hidden="true"></span>
+
+    <div class="note__meta">
+      {seededTouchedSame ? (
+        <span class="note__meta-pair">
+          <span class="note__meta-key">seeded</span>
+          <span class="note__meta-dot" aria-hidden="true">·</span>
+          <span class="note__meta-val">{d.seeded}</span>
+        </span>
+      ) : (
+        <>
+          <span class="note__meta-pair">
+            <span class="note__meta-key">seeded</span>
+            <span class="note__meta-dot" aria-hidden="true">·</span>
+            <span class="note__meta-val">{d.seeded}</span>
+          </span>
+          <span class="note__meta-pair">
+            <span class="note__meta-key">touched</span>
+            <span class="note__meta-dot" aria-hidden="true">·</span>
+            <span class="note__meta-val">{d.touched}</span>
+          </span>
+        </>
+      )}
+    </div>
+
+    <div class="note__foot">
+      <span class={`note__state ${st.pulse ? 'note__state--pulse' : ''}`}>
+        <span class="note__state-glyph" aria-hidden="true">{st.glyph}</span>
+        <span class="note__state-label">{st.label}</span>
+      </span>
+      <span class="note__open">
+        Open
+        <svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true">
+          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </div>
+  </button>
+</article>
+
+<style>
+  /* Per-archetype palette tokens. Cards inherit from the parent
+     .notebook__field's data-archetype-... but we set them at
+     the card level too so a card can stand alone (e.g. on the
+     zine page as a teaser). */
+  .note[data-archetype='logic'] {
+    --paper:        #FBE9C4;
+    --paper-edge:   #E8C98A;
+    --border:       rgba(122, 80, 24, 0.32);
+    --rule:         rgba(122, 80, 24, 0.20);
+    --ink:          #2c1c08;
+    --ink-mute:     rgba(44, 28, 8, 0.62);
+    --meta-ink:     rgba(44, 28, 8, 0.55);
+    --accent:       #7d4326;
+    --chip:         rgba(122, 80, 24, 0.18);
+  }
+  .note[data-archetype='psyche'] {
+    --paper:        #1f2837;
+    --paper-edge:   #10141d;
+    --border:       rgba(255, 213, 132, 0.22);
+    --rule:         rgba(255, 213, 132, 0.18);
+    --ink:          #f3ece1;
+    --ink-mute:     rgba(243, 236, 225, 0.62);
+    --meta-ink:     rgba(243, 236, 225, 0.55);
+    --accent:       #e5c68f;
+    --chip:         rgba(255, 213, 132, 0.16);
+  }
+  .note[data-archetype='instinct'] {
+    --paper:        #3a1d22;
+    --paper-edge:   #22090e;
+    --border:       rgba(220, 170, 175, 0.22);
+    --rule:         rgba(220, 170, 175, 0.18);
+    --ink:          #fbe8e8;
+    --ink-mute:     rgba(251, 232, 232, 0.62);
+    --meta-ink:     rgba(251, 232, 232, 0.55);
+    --accent:       #e0a4a8;
+    --chip:         rgba(220, 170, 175, 0.18);
+  }
+
+  .note { margin: 0; }
+
+  .note__face {
+    position: relative;
+    display: grid;
+    width: 100%;
+    text-align: left;
+    padding: 1rem 1.05rem 0.85rem;
+    background: linear-gradient(180deg, var(--paper) 0%, var(--paper-edge) 100%);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    overflow: hidden;
+    isolation: isolate;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.10),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.10),
+      0 calc(8px + var(--prox, 0) * 18px)
+        calc(20px + var(--prox, 0) * 28px)
+        calc(-12px + var(--prox, 0) * 4px)
+        rgba(0, 0, 0, calc(0.55 + var(--prox, 0) * 0.20));
+    filter: brightness(calc(1 + var(--prox, 0) * 0.06));
+    transition:
+      filter 160ms var(--ease-out),
+      box-shadow 220ms var(--ease-out),
+      border-color 220ms var(--ease-out),
+      transform 120ms cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  .note__face:active { transform: scale(0.965); transition: transform 60ms ease-out; }
+  .note__face:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    filter: brightness(1.08);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      0 26px 44px -16px rgba(0, 0, 0, 0.7),
+      0 0 0 2px var(--accent);
+  }
+
+  /* Faint paper grain (same SVG noise as existing cards). */
+  .note__face::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.45 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.10;
+  }
+
+  /* TOP RAIL — chip · aim · stamp */
+  .note__top {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+    line-height: 1;
+  }
+  .note__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .note__chip-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--chip);
+    box-shadow: 0 0 6px var(--chip), 0 0 0 1px var(--border);
+  }
+  .note__chip-text { transform: translateY(0.5px); }
+
+  .note__aim {
+    text-align: center;
+    font-family: var(--font-sans);
+    font-size: 0.56rem;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--meta-ink);
+    align-self: center;
+  }
+
+  .note__stamp {
+    justify-self: end;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+  }
+
+  /* SEED + PREVIEW */
+  .note__seed {
+    margin: 0 0 0.55rem;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: clamp(1.05rem, 0.7vw + 0.8rem, 1.22rem);
+    line-height: 1.25;
+    color: var(--ink);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .note__preview {
+    margin: 0 0 0.85rem;
+    font-family: var(--font-serif);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--ink-mute);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* HAIRLINE RULE */
+  .note__rule {
+    display: block;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--rule) 25%, var(--rule) 75%, transparent);
+    margin: 0 0 0.6rem;
+  }
+
+  /* META RAIL — seeded / touched */
+  .note__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    margin-bottom: 0.55rem;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.66rem;
+    color: var(--meta-ink);
+    letter-spacing: 0.02em;
+  }
+  .note__meta-pair { display: inline-flex; align-items: baseline; gap: 0.4em; }
+  .note__meta-key { text-transform: lowercase; }
+  .note__meta-dot { color: var(--ink-mute); opacity: 0.55; }
+  .note__meta-val { font-variant-numeric: tabular-nums; }
+
+  /* STATE + OPEN ROW */
+  .note__foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .note__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .note__state-glyph {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--accent);
+  }
+  .note__state--pulse .note__state-glyph {
+    animation: state-pulse 2s ease-in-out infinite;
+  }
+  .note[data-state='finalized'] .note__state {
+    color: var(--accent);
+  }
+  @keyframes state-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+  }
+  .note__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-family: var(--font-sans);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    transition: transform 220ms var(--ease-out);
+  }
+  .note[data-active='true'] .note__open,
+  .note__face:focus-visible .note__open { transform: translateX(2px); }
+
+  /* Active state — strong accent + brighter face. */
+  .note[data-active='true'] .note__face {
+    border-color: var(--accent);
+    filter: brightness(1.10);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      0 26px 46px -16px rgba(0, 0, 0, 0.72),
+      0 0 24px -4px var(--accent),
+      0 0 0 1px var(--accent);
+  }
+
+  /* While the modal for this card is open, the card recedes
+     so the modal is unambiguously the focal point. */
+  .note.is-active .note__face {
+    transform: scale(0.94);
+    transition: transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 380ms ease-out;
+    filter: brightness(0.92) saturate(0.9);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 0 0 1px var(--accent),
+      0 28px 50px -22px rgba(0, 0, 0, 0.85);
+  }
+
+  /* MOBILE — stamp absolute, aim drops below chip, meta wraps */
+  @media (max-width: 600px) {
+    .note__face { padding: 0.95rem 1rem 0.85rem; }
+    .note__top {
+      grid-template-columns: 1fr;
+      gap: 0.2rem;
+    }
+    .note__aim {
+      justify-self: start;
+      text-align: left;
+    }
+    .note__stamp {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+    }
+  }
+</style>

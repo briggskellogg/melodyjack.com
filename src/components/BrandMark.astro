@@ -1,0 +1,27 @@
+---
+/**
+ * The signature mark. Top-left of every page. There is no
+ * navigation on this site — the mark is identity-only. It
+ * links to / so the reader can come home from /notebook.
+ */
+import { Image } from 'astro:assets';
+import signature from '~/assets/signature.png';
+
+interface Props {
+  /** Hide the wordmark on a page where it would compete (default: show). */
+  wordmark?: boolean;
+}
+const { wordmark = true } = Astro.props;
+---
+
+<a class="brand-mark" href="/" aria-label="Melody Jack — home">
+  <Image
+    src={signature}
+    alt=""
+    width={56}
+    height={56}
+    class="brand-mark__sig"
+    loading="eager"
+  />
+  {wordmark && <span class="brand-mark__name">Melody Jack</span>}
+</a>

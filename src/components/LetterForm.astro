@@ -1,0 +1,1049 @@
+---
+import WaxStamp from './WaxStamp.astro';
+import { Image } from 'astro:assets';
+import signature from '~/assets/signature.png';
+
+interface Props {
+  /** The piece's slug — included in the email subject + body */
+  pieceSlug: string;
+  /** The piece's title — shown in the form headline */
+  pieceTitle: string;
+  /** Light variant for paper pages, dark for ink/image pages */
+  variant?: 'light' | 'dark';
+  /** Archetype tints accents */
+  archetype?: 'logic' | 'psyche' | 'instinct';
+}
+
+const {
+  pieceSlug,
+  pieceTitle,
+  variant = 'light',
+  archetype = 'logic',
+} = Astro.props;
+
+const letterTo = (import.meta.env.PUBLIC_LETTER_TO as string | undefined) || 'briggs@kellogg.co';
+const formspreeId = (import.meta.env.PUBLIC_FORMSPREE_ID as string | undefined) || '';
+
+const noJsFallbackAction = `mailto:${letterTo}?subject=${encodeURIComponent(`A letter about "${pieceTitle}"`)}`;
+const uid = `${pieceSlug}-${Math.random().toString(36).slice(2, 7)}`;
+
+const today = new Date().toLocaleDateString('en-US', {
+  month: 'long', day: 'numeric', year: 'numeric',
+});
+---
+
+<aside
+  class={`letter letter--${variant}`}
+  data-archetype={archetype}
+  data-letter-form
+  data-piece-slug={pieceSlug}
+  data-piece-title={pieceTitle}
+  data-letter-to={letterTo}
+  data-formspree-id={formspreeId}
+  aria-label="Respond to Melody Jack"
+>
+  {/* ============== Sticky launcher — fixed in the lower-right ==============
+      The launcher is the wax seal itself, with a handwritten italic
+      label running to its left. No pill, no border, no eyebrow —
+      just an ink-on-paper artefact resting in the corner. The seal
+      lifts slightly on hover and the label brightens, so the
+      affordance reads as "pick up the pen", not "press a button". */}
+  <button
+    class="letter__launch"
+    type="button"
+    data-letter-open
+    aria-haspopup="dialog"
+    aria-expanded="false"
+    aria-controls={`letter-overlay-${uid}`}
+  >
+    <span class="letter__launch-label" aria-hidden="true">
+      <span class="letter__launch-text">Respond to <em class="mj-silver">Melody Jack</em></span>
+      <svg class="letter__launch-rule" viewBox="0 0 120 8" preserveAspectRatio="none" aria-hidden="true">
+        {/* Hand-drawn underline — a thin wavy line under the label */}
+        <path
+          d="M 2 5 Q 18 2 32 5 T 62 5 T 92 5 T 118 5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1"
+          stroke-linecap="round"
+        />
+      </svg>
+    </span>
+    <span class="letter__launch-stamp" aria-hidden="true">
+      <WaxStamp size={42} uid={`launch-${uid}`} label="Compose a letter to Melody Jack" />
+    </span>
+  </button>
+
+  {/* ============== Overlay modal — opens with an atmospheric backdrop ============== */}
+  <div
+    class="letter__overlay"
+    id={`letter-overlay-${uid}`}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby={`letter-h-${uid}`}
+    hidden
+  >
+    <div class="letter__overlay-bg" aria-hidden="true">
+      <div class="letter__overlay-glow"></div>
+      <div class="letter__overlay-grain"></div>
+      {Array.from({ length: 18 }).map((_, i) => (
+        <span
+          class="letter__overlay-mote"
+          style={`--mx:${(i * 53) % 100}%; --my:${(i * 31) % 100}%; --d:${5 + (i % 6) * 1.4}s; --del:${(i % 7) * 0.6}s;`}
+        />
+      ))}
+    </div>
+
+    <button
+      type="button"
+      class="letter__overlay-dismiss"
+      data-letter-close
+      aria-label="Close letter"
+    ></button>
+
+    <div class="letter__sheet" role="document">
+      {/* Close button is its own positioned element so it never has to
+          fight for space inside the letterhead grid. */}
+      <button
+        type="button"
+        class="letter__close"
+        data-letter-close
+        aria-label="Close letter"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <path d="M6 6l12 12M6 18L18 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <form
+        class="letter__form"
+        action={noJsFallbackAction}
+        method="post"
+        enctype="text/plain"
+        data-letter-formel
+        novalidate
+      >
+        <header class="letter__head">
+          <div class="letter__head-line">
+            <span class="letter__monogram" aria-hidden="true">
+              <Image
+                src={signature}
+                alt=""
+                width={64}
+                height={64}
+                class="letter__monogram-img"
+                loading="eager"
+              />
+            </span>
+            <span class="letter__head-rule" aria-hidden="true"></span>
+            <time class="letter__date" data-letter-date>{today}</time>
+          </div>
+          <p class="letter__about">
+            <span class="letter__about-eyebrow">In response to</span>
+            <span class="letter__about-piece">&ldquo;{pieceTitle}&rdquo;</span>
+          </p>
+        </header>
+
+        <h3 class="visually-hidden" id={`letter-h-${uid}`}>A letter about {pieceTitle}</h3>
+
+        <p class="letter__salutation">Dear <span class="mj-silver">Melody Jack</span>,</p>
+
+        <label class="letter__field-body">
+          <span class="visually-hidden">Your letter</span>
+          <textarea
+            class="letter__textarea"
+            name="message"
+            rows="10"
+            maxlength="6000"
+            required
+            placeholder="Write what struck you. A sentence is plenty."
+          ></textarea>
+          <span class="letter__count" data-letter-count aria-live="polite">0 / 6,000</span>
+        </label>
+
+        <div class="letter__closing">
+          <span class="letter__closing-word">Yours,</span>
+          <label class="letter__signature">
+            <span class="visually-hidden">Your name</span>
+            <input
+              class="letter__sig-input"
+              type="text"
+              name="name"
+              autocomplete="name"
+              placeholder="(your name — optional)"
+              maxlength="80"
+            />
+          </label>
+        </div>
+
+        <label class="letter__reply">
+          <span class="letter__reply-label">If you'd like a reply —</span>
+          <input
+            class="letter__reply-input"
+            type="email"
+            name="email"
+            autocomplete="email"
+            placeholder="you@somewhere.com"
+            maxlength="120"
+          />
+        </label>
+
+        <input type="hidden" name="piece" value={pieceTitle} />
+        <input type="hidden" name="slug" value={pieceSlug} />
+        <input type="hidden" name="_subject" value={`A letter about "${pieceTitle}"`} />
+        <label class="letter__honey" aria-hidden="true">
+          Don't fill this in:
+          <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" />
+        </label>
+
+        <footer class="letter__action">
+          <p class="letter__privacy">
+            Letters land directly in <span class="mj-silver">Melody Jack</span>'s inbox. Nothing is stored or shown publicly.
+          </p>
+          <button class="letter__send" type="submit" data-letter-send>
+            <span class="letter__send-text">Seal &amp; send</span>
+            <span class="letter__send-stamp" aria-hidden="true">
+              <WaxStamp size={42} uid={`send-${uid}`} label="Seal letter" />
+            </span>
+          </button>
+        </footer>
+      </form>
+
+      <div class="letter__thanks" data-letter-thanks hidden>
+        <div class="letter__thanks-stamp" aria-hidden="true">
+          <WaxStamp size={108} uid={`thanks-${uid}`} label="Letter sent" />
+        </div>
+        <h3 class="letter__thanks-title">Sealed.</h3>
+        <p class="letter__thanks-line">Thank you for reading. <span class="mj-silver">Melody Jack</span> opens letters by hand.</p>
+        <button type="button" class="letter__thanks-close" data-letter-close>Close</button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<script>
+  function init() {
+    document.querySelectorAll<HTMLElement>('[data-letter-form]').forEach((root) => {
+      // Idempotency guard. With Astro view transitions enabled,
+      // this script re-runs on every astro:page-load. Without
+      // this guard we'd attach a fresh open / close / submit
+      // handler on every navigation \u2014 click 'Respond' once and
+      // get N modals open at once.
+      if (root.dataset.letterReady === '1') return;
+      root.dataset.letterReady = '1';
+
+      const launch = root.querySelector<HTMLButtonElement>('[data-letter-open]');
+      const overlay = root.querySelector<HTMLElement>('.letter__overlay');
+      const closes = root.querySelectorAll<HTMLButtonElement>('[data-letter-close]');
+      const form = root.querySelector<HTMLFormElement>('[data-letter-formel]');
+      const send = root.querySelector<HTMLButtonElement>('[data-letter-send]');
+      const thanks = root.querySelector<HTMLElement>('[data-letter-thanks]');
+      const textarea = root.querySelector<HTMLTextAreaElement>('.letter__textarea');
+      const counter = root.querySelector<HTMLElement>('[data-letter-count]');
+      const dateEl = root.querySelector<HTMLElement>('[data-letter-date]');
+      if (!launch || !overlay || !form || !send || !thanks || !textarea || !counter) return;
+
+      const pieceTitle = root.dataset.pieceTitle || '';
+      const pieceSlug = root.dataset.pieceSlug || '';
+      const letterTo = root.dataset.letterTo || '';
+      const formspreeId = root.dataset.formspreeId || '';
+
+      // Refresh date in visitor's locale
+      if (dateEl) {
+        dateEl.textContent = new Date().toLocaleDateString(undefined, {
+          month: 'long', day: 'numeric', year: 'numeric',
+        });
+      }
+
+      let lastFocus: HTMLElement | null = null;
+      function open() {
+        lastFocus = document.activeElement as HTMLElement;
+        overlay!.hidden = false;
+        // Force a reflow so the open transition runs
+        void overlay!.offsetWidth;
+        overlay!.classList.add('is-open');
+        launch!.setAttribute('aria-expanded', 'true');
+        document.body.classList.add('letter-locked');
+        setTimeout(() => textarea!.focus({ preventScroll: true }), 320);
+      }
+      function close() {
+        overlay!.classList.remove('is-open');
+        launch!.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('letter-locked');
+        const finish = () => {
+          overlay!.hidden = true;
+          overlay!.removeEventListener('transitionend', finish);
+          lastFocus?.focus?.({ preventScroll: true });
+        };
+        overlay!.addEventListener('transitionend', finish, { once: true });
+        setTimeout(finish, 700);
+      }
+
+      launch.addEventListener('click', open);
+      closes.forEach((b) => b.addEventListener('click', close));
+      // Click the dim backdrop to close
+      overlay.addEventListener('mousedown', (e) => {
+        if (e.target === overlay) close();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay!.classList.contains('is-open')) close();
+      });
+
+      function updateCount() {
+        const n = textarea!.value.length;
+        counter!.textContent = `${n.toLocaleString()} / 6,000`;
+        counter!.classList.toggle('is-near', n > 5400);
+      }
+      textarea.addEventListener('input', updateCount);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if ((root.querySelector('[name="_gotcha"]') as HTMLInputElement)?.value) return;
+
+        const fd = new FormData(form!);
+        const name = (fd.get('name') as string || '').trim();
+        const email = (fd.get('email') as string || '').trim();
+        const message = (fd.get('message') as string || '').trim();
+        if (!message) {
+          textarea!.focus();
+          return;
+        }
+
+        send!.disabled = true;
+        send!.classList.add('is-sending');
+
+        const subject = `A letter about "${pieceTitle}"`;
+
+        try {
+          if (formspreeId) {
+            const res = await fetch(`https://formspree.io/f/${formspreeId}`, {
+              method: 'POST',
+              headers: { Accept: 'application/json' },
+              body: fd,
+            });
+            if (!res.ok) throw new Error(`Formspree ${res.status}`);
+            showThanks();
+          } else {
+            const body = [
+              `Dear Melody Jack,`, ``,
+              message, ``,
+              `Yours,`,
+              `${name || 'A reader'}${email ? ` <${email}>` : ''}`,
+              ``,
+              `(re: "${pieceTitle}" — /${pieceSlug})`,
+            ].join('\n');
+            const url = `mailto:${letterTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = url;
+            setTimeout(showThanks, 600);
+          }
+        } catch (err) {
+          console.error(err);
+          send!.disabled = false;
+          send!.classList.remove('is-sending');
+          const body = `${message}\n\n— ${name || 'A reader'}${email ? ` <${email}>` : ''}\n\n(re: "${pieceTitle}")`;
+          const url = `mailto:${letterTo}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          window.location.href = url;
+          setTimeout(showThanks, 600);
+        }
+      });
+
+      function showThanks() {
+        form!.hidden = true;
+        thanks!.hidden = false;
+        send!.classList.remove('is-sending');
+        send!.disabled = false;
+      }
+
+      updateCount();
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  // Re-run on view-transition navigation. Without this the
+  // 'Respond to Melody Jack' launcher appears on routes
+  // navigated INTO via in-page links, but its click handler is
+  // never wired (DOMContentLoaded already fired on the original
+  // document load and won't fire again). The init() guard
+  // above makes re-runs safe.
+  document.addEventListener('astro:page-load', init);
+</script>
+
+<style is:global>
+  body.letter-locked { overflow: hidden; }
+</style>
+
+<style>
+  .letter {
+    --lf-paper: #fdf6e3;
+    --lf-paper-edge: #f1e3bd;
+    --lf-ink: #20180e;
+    --lf-ink-mute: rgba(32, 24, 14, 0.55);
+    --lf-rule: rgba(80, 50, 30, 0.22);
+    --lf-acc: var(--highlight, #C97E55);
+    --lf-acc-rgb: var(--highlight-rgb, 201, 126, 85);
+    /* Reset host: the component contributes nothing to the surrounding flow.
+       The launcher is fixed and the overlay is fixed/portalled in place. */
+    display: contents;
+  }
+
+  /* ============================================================
+     STICKY LAUNCHER — a wax seal resting in the lower-right
+     corner with a handwritten italic label beside it. No pill,
+     no border, no chrome — just an ink-on-paper mark on the
+     page. The seal lifts on hover; the label brightens.
+     ============================================================ */
+  .letter__launch {
+    position: fixed;
+    right: clamp(1rem, 3vw, 2rem);
+    bottom: clamp(1rem, 3vh, 2rem);
+    z-index: 80;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7em;
+    padding: 0.55em 0.9em 0.55em 1.1em;
+    background: transparent;
+    border: 0;
+    color: var(--lf-ink);
+    cursor: pointer;
+    font-family: var(--font-sans);
+    isolation: isolate;
+    transition:
+      transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 280ms var(--ease-out);
+    animation: letter-launch-rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 600ms both;
+  }
+  /* Soft paper halo behind the launcher — no hard pill edge, just
+     enough atmosphere to push the page content behind the label
+     out of focus so the handwriting reads clearly. The halo is
+     bigger than the launcher itself so the fade is generous. */
+  .letter__launch::before {
+    content: '';
+    position: absolute;
+    inset: -22px -28px;
+    z-index: -1;
+    border-radius: 999px;
+    background: radial-gradient(
+      ellipse 65% 70% at 70% 50%,
+      var(--lf-paper) 0%,
+      var(--lf-paper) 22%,
+      rgba(253, 246, 227, 0.55) 50%,
+      rgba(253, 246, 227, 0) 78%
+    );
+    backdrop-filter: blur(6px) saturate(1.05);
+    -webkit-backdrop-filter: blur(6px) saturate(1.05);
+    transition: opacity 320ms var(--ease-out);
+  }
+  .letter--dark .letter__launch::before {
+    background: radial-gradient(
+      ellipse 65% 70% at 70% 50%,
+      rgba(7, 7, 10, 0.78) 0%,
+      rgba(7, 7, 10, 0.78) 22%,
+      rgba(7, 7, 10, 0.40) 50%,
+      rgba(7, 7, 10, 0) 78%
+    );
+  }
+  @keyframes letter-launch-rise {
+    from { transform: translateY(16px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  .letter__launch:focus-visible { outline: none; }
+
+  .letter__launch-label {
+    display: grid;
+    gap: 0.18em;
+    line-height: 1.1;
+    text-align: right;
+    transform: translateX(0);
+    transition: transform 360ms var(--ease-out), opacity 280ms var(--ease-out);
+  }
+  .letter__launch-text {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1rem;
+    color: var(--lf-ink);
+    white-space: nowrap;
+    /* Soft shadow so the ink reads against any page background. */
+    text-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.18);
+    transition: color 280ms var(--ease-out);
+  }
+  /* On dark page surfaces (stories), flip the launcher's ink to a
+     warm cream so it reads against the ink background, and lean
+     the text-shadow into a subtle warm glow. */
+  .letter--dark .letter__launch-text {
+    color: var(--warm-white, #f3ece1);
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.55),
+      0 0 8px rgba(229, 198, 143, 0.22);
+  }
+  .letter--dark .letter__launch-text em {
+    color: var(--warm-white, #f3ece1);
+    opacity: 0.95;
+  }
+  .letter--dark .letter__launch-rule {
+    color: var(--warm-white-dim, rgba(243, 236, 225, 0.55));
+    opacity: 0.45;
+  }
+  .letter--dark .letter__launch:hover .letter__launch-text,
+  .letter--dark .letter__launch:focus-visible .letter__launch-text {
+    color: var(--lf-acc);
+  }
+  .letter--dark .letter__launch:hover .letter__launch-rule,
+  .letter--dark .letter__launch:focus-visible .letter__launch-rule {
+    color: var(--lf-acc);
+    opacity: 0.85;
+  }
+  .letter__launch-text em {
+    font-style: italic;
+    color: var(--lf-acc);
+    font-weight: 500;
+  }
+  .letter__launch-rule {
+    width: 100%;
+    height: 6px;
+    color: var(--lf-acc);
+    opacity: 0.55;
+    transition: opacity 280ms var(--ease-out), transform 360ms var(--ease-out);
+  }
+
+  .letter__launch-stamp {
+    line-height: 0;
+    transform: rotate(-6deg);
+    transition: transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    filter:
+      drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45))
+      drop-shadow(0 2px 3px rgba(0, 0, 0, 0.30));
+  }
+
+  /* Hover / focus — the seal lifts and rotates as if being picked
+     up off the desk; the label brightens and the underline pulls
+     a touch wider. */
+  .letter__launch:hover .letter__launch-stamp,
+  .letter__launch:focus-visible .letter__launch-stamp {
+    transform: rotate(3deg) translateY(-3px) scale(1.06);
+    filter:
+      drop-shadow(0 10px 16px rgba(0, 0, 0, 0.5))
+      drop-shadow(0 3px 5px rgba(0, 0, 0, 0.35))
+      drop-shadow(0 0 14px rgba(var(--lf-acc-rgb), 0.35));
+  }
+  .letter__launch:hover .letter__launch-text,
+  .letter__launch:focus-visible .letter__launch-text { color: var(--lf-acc); }
+  .letter__launch:hover .letter__launch-rule,
+  .letter__launch:focus-visible .letter__launch-rule {
+    opacity: 0.95;
+    transform: scaleX(1.04);
+  }
+
+  /* When the audio reader (cinema bar) is also visible, lift the
+     launcher above it so they never overlap. */
+  body:has(.cinema) .letter__launch,
+  body:has(.audio-reader) .letter__launch { bottom: clamp(5.25rem, 10vh, 7rem); }
+
+  @media (max-width: 600px) {
+    /* On small screens, hide the label and let the wax seal alone
+       speak for the affordance. The full label re-enters after
+       the user taps once (handled by the launcher's open behaviour
+       on devices without hover). */
+    .letter__launch-label { display: none; }
+  }
+
+  /* Hide the launcher while the modal is open */
+  body.letter-locked .letter__launch {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+  }
+
+  /* ============================================================
+     OVERLAY — full-viewport dim backdrop with floating motes.
+     ============================================================ */
+  .letter__overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    padding: clamp(1rem, 4vh, 2.5rem) clamp(1rem, 4vw, 2.5rem);
+    overflow-y: auto;
+    opacity: 0;
+    transition: opacity 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .letter__overlay[hidden] { display: none; }
+  .letter__overlay.is-open { opacity: 1; }
+
+  .letter__overlay-bg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(20, 14, 10, 0.55), rgba(8, 6, 4, 0.92));
+    backdrop-filter: blur(6px);
+  }
+  .letter__overlay-glow {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 50% 35% at 50% 50%, rgba(var(--lf-acc-rgb), 0.16), transparent 70%);
+    mix-blend-mode: screen;
+  }
+  .letter__overlay-grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.18;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.0' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  /* Drifting motes — small specks of light that drift up like wax embers,
+     adding atmosphere to the writing surface. */
+  .letter__overlay-mote {
+    position: absolute;
+    left: var(--mx);
+    top: var(--my);
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffd49a 0%, rgba(255, 180, 100, 0.5) 40%, transparent 80%);
+    box-shadow: 0 0 8px rgba(255, 180, 100, 0.55);
+    opacity: 0;
+    animation: letter-mote-drift var(--d) ease-in-out infinite;
+    animation-delay: var(--del);
+    pointer-events: none;
+  }
+  @keyframes letter-mote-drift {
+    0%   { transform: translate(0, 0); opacity: 0; }
+    20%  { opacity: 0.85; }
+    100% { transform: translate(2vw, -22vh); opacity: 0; }
+  }
+
+  /* Click-anywhere dismiss button positioned over the dim layer (full
+     overlay area), beneath the sheet. Keeps a clean keyboard focus
+     target without competing visually. */
+  .letter__overlay-dismiss {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: 0;
+    cursor: zoom-out;
+    z-index: 1;
+  }
+
+  /* ============================================================
+     SHEET — the actual letter-writing surface, centered in the overlay.
+     One uniform inner padding keeps the letterhead, body and footer
+     in the same column; the close button is positioned separately and
+     never steals room from the letterhead grid.
+     ============================================================ */
+  .letter__sheet {
+    --sheet-pad: clamp(1.5rem, 3vw, 2.25rem);
+    position: relative;
+    z-index: 2;
+    width: min(620px, 100%);
+    max-height: calc(100dvh - clamp(2rem, 8vh, 5rem));
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--lf-paper), var(--lf-paper-edge) 55%, var(--lf-paper));
+    border: 1px solid var(--lf-rule);
+    border-radius: 14px;
+    padding: var(--sheet-pad);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 60px 100px -40px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(0, 0, 0, 0.1);
+    color: var(--lf-ink);
+    transform: translateY(16px) scale(0.97);
+    transition: transform 480ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    isolation: isolate;
+  }
+  .letter__overlay.is-open .letter__sheet {
+    transform: translateY(0) scale(1);
+  }
+  .letter__form {
+    display: grid;
+    gap: clamp(1rem, 2vw, 1.4rem);
+  }
+  /* Faint paper grain inside the sheet */
+  .letter__sheet::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.45 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.10;
+    mix-blend-mode: overlay;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  /* ============== Letterhead ============== */
+  .letter__head {
+    display: grid;
+    gap: 0.55rem;
+    /* Reserve a little extra padding on the right edge so the close button
+       (positioned over the sheet) never overlaps the date. */
+    padding-right: 2rem;
+  }
+  .letter__head-line {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.85rem;
+  }
+  /* Monogram is the brand signature mark — a small bitmap of the
+     handwritten MJ logo, color-tinted to the letter's ink so it sits
+     comfortably on the warm-cream paper. */
+  .letter__monogram {
+    display: inline-flex;
+    align-items: center;
+    line-height: 0;
+  }
+  .letter__monogram :global(img),
+  .letter__monogram-img {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    /* The signature.png is a near-white silver mark; on the cream
+       paper we recolor it to the letter ink with a sepia-deepening
+       filter chain so it reads as a brushed monogram. */
+    filter:
+      brightness(0)
+      saturate(0)
+      drop-shadow(0 1px 0 rgba(80, 50, 25, 0.35));
+    opacity: 0.85;
+  }
+  .letter__head-rule {
+    height: 1px;
+    background: linear-gradient(90deg, var(--lf-rule), transparent);
+  }
+  .letter__date {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 0.92rem;
+    color: var(--lf-ink-mute);
+    white-space: nowrap;
+  }
+  .letter__about {
+    margin: 0;
+    display: grid;
+    gap: 0.2em;
+  }
+  .letter__about-eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--lf-ink-mute);
+  }
+  .letter__about-piece {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 1.08rem;
+    line-height: 1.3;
+    color: var(--lf-ink);
+  }
+
+  /* Close button — positioned to the sheet, never to the head, so the
+     letterhead can use its full width without competing for space. */
+  .letter__close {
+    position: absolute;
+    top: 0.85rem;
+    right: 0.85rem;
+    z-index: 3;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--lf-rule);
+    background: rgba(255, 255, 255, 0.55);
+    color: var(--lf-ink-mute);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition:
+      color 220ms var(--ease-out),
+      border-color 220ms var(--ease-out),
+      background 220ms var(--ease-out),
+      transform 220ms var(--ease-out);
+  }
+  .letter__close:hover,
+  .letter__close:focus-visible {
+    color: var(--lf-acc);
+    border-color: rgba(var(--lf-acc-rgb), 0.55);
+    background: rgba(255, 255, 255, 0.85);
+    transform: rotate(90deg);
+    outline: none;
+  }
+
+  .letter__salutation {
+    margin: 0;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 1.18rem;
+    color: var(--lf-ink);
+  }
+
+  /* ============== Body textarea (ruled paper) ============== */
+  .letter__field-body {
+    position: relative;
+    display: block;
+  }
+  .letter__textarea {
+    display: block;
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    /* Ample bottom padding so the floating character counter never sits
+       on top of the user's last line of text. */
+    padding: 0.45rem 0.1rem 1.7rem;
+    background: transparent;
+    border: 0;
+    color: var(--lf-ink);
+    font-family: var(--font-display);
+    font-size: 1.08rem;
+    /* line-height in rem so the ruled-line background syncs perfectly */
+    line-height: 1.85rem;
+    background-image:
+      linear-gradient(
+        transparent calc(1.85rem - 1px),
+        var(--lf-rule) calc(1.85rem - 1px),
+        var(--lf-rule) 1.85rem,
+        transparent 1.85rem
+      );
+    background-size: 100% 1.85rem;
+    /* The ruled lines start a hair below the top edge so the first line
+       of text sits cleanly between the rules. */
+    background-position: 0 0.45rem;
+    background-attachment: local;
+    outline: none;
+  }
+  .letter__textarea::placeholder {
+    color: rgba(32, 24, 14, 0.32);
+    font-style: italic;
+  }
+  .letter__textarea:focus { background-color: rgba(255, 255, 255, 0.22); }
+  .letter__count {
+    position: absolute;
+    right: 0.1rem;
+    bottom: 0.4rem;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    color: var(--lf-ink-mute);
+    pointer-events: none;
+  }
+  .letter__count.is-near { color: var(--lf-acc); }
+
+  /* ============== Closing + signature ============== */
+  .letter__closing {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .letter__closing-word {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.18rem;
+    line-height: 1.4;
+    color: var(--lf-ink);
+  }
+  .letter__signature { display: block; min-width: 0; }
+  .letter__sig-input {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 0.1rem 0.4rem;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--lf-rule);
+    color: var(--lf-ink);
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.18rem;
+    line-height: 1.4;
+    transition: border-color 200ms var(--ease-out);
+  }
+  .letter__sig-input:focus { outline: none; border-color: var(--lf-acc); }
+  .letter__sig-input::placeholder { color: rgba(32, 24, 14, 0.3); }
+
+  /* ============== Reply line ============== */
+  .letter__reply {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    align-items: baseline;
+  }
+  @media (min-width: 540px) {
+    .letter__reply {
+      grid-template-columns: auto 1fr;
+      column-gap: 0.85rem;
+    }
+  }
+  .letter__reply-label {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    color: var(--lf-ink-mute);
+  }
+  .letter__reply-input {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 0.1rem 0.4rem;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--lf-rule);
+    color: var(--lf-ink);
+    font-family: var(--font-serif);
+    font-size: 0.95rem;
+    line-height: 1.4;
+    transition: border-color 200ms var(--ease-out);
+  }
+  .letter__reply-input:focus { outline: none; border-color: var(--lf-acc); }
+  .letter__reply-input::placeholder { color: rgba(32, 24, 14, 0.3); }
+
+  .letter__honey { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+  /* ============== Action footer ============== */
+  .letter__action {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    align-items: center;
+    padding-top: 1.1rem;
+    border-top: 1px dashed var(--lf-rule);
+  }
+  @media (min-width: 540px) {
+    .letter__action {
+      grid-template-columns: 1fr auto;
+      column-gap: 1.25rem;
+    }
+  }
+  .letter__privacy {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--lf-ink-mute);
+  }
+  .letter__send {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85em;
+    padding: 0.45em 0.55em 0.45em 1.1em;
+    border: 1px solid rgba(var(--lf-acc-rgb), 0.5);
+    background: linear-gradient(180deg, rgba(var(--lf-acc-rgb), 0.10), rgba(var(--lf-acc-rgb), 0.02));
+    color: var(--lf-ink);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    transition:
+      transform 320ms var(--ease-out),
+      background 320ms var(--ease-out),
+      box-shadow 320ms var(--ease-out),
+      border-color 320ms var(--ease-out);
+  }
+  .letter__send:hover, .letter__send:focus-visible {
+    transform: translateY(-1px);
+    background: linear-gradient(180deg, rgba(var(--lf-acc-rgb), 0.18), rgba(var(--lf-acc-rgb), 0.05));
+    border-color: rgba(var(--lf-acc-rgb), 0.7);
+    box-shadow: 0 14px 28px -14px rgba(var(--lf-acc-rgb), 0.55);
+    outline: none;
+  }
+  .letter__send-stamp {
+    display: inline-flex;
+    line-height: 0;
+    transform: rotate(-6deg) translateY(-1px);
+    transition: transform 320ms var(--ease-out);
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+  }
+  .letter__send:hover .letter__send-stamp,
+  .letter__send:focus-visible .letter__send-stamp {
+    transform: rotate(0deg) translateY(0) scale(1.04);
+  }
+  .letter__send.is-sending { pointer-events: none; opacity: 0.85; }
+  .letter__send.is-sending .letter__send-stamp {
+    animation: letter-stamp-press 720ms ease-in-out infinite alternate;
+  }
+  @keyframes letter-stamp-press {
+    from { transform: rotate(-6deg) scale(1)    translateY(-1px); }
+    to   { transform: rotate(2deg)  scale(1.16) translateY(2px); }
+  }
+  .letter__send-text { white-space: nowrap; }
+
+  /* -- Thanks state -- */
+  .letter__thanks {
+    text-align: center;
+    padding: 2.2rem 0.5rem 0.5rem;
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+    animation: letter-thanks-in 540ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .letter__thanks[hidden],
+  .letter__form[hidden] { display: none !important; }
+  @keyframes letter-thanks-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .letter__thanks-stamp {
+    display: inline-flex;
+    line-height: 0;
+    margin-bottom: 0.6rem;
+    animation: letter-thanks-stamp 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @keyframes letter-thanks-stamp {
+    from { transform: scale(1.6) rotate(-12deg); opacity: 0; }
+    50%  { transform: scale(0.92) rotate(2deg);  opacity: 1; }
+    to   { transform: scale(1)    rotate(-3deg); opacity: 1; }
+  }
+  .letter__thanks-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 1.6rem;
+    margin: 0;
+    color: var(--lf-ink);
+  }
+  .letter__thanks-line {
+    margin: 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.95rem;
+    color: var(--lf-ink-mute);
+    max-width: 36ch;
+  }
+  .letter__thanks-close {
+    margin-top: 1rem;
+    padding: 0.5em 1.4em;
+    background: transparent;
+    border: 1px solid var(--lf-rule);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--lf-ink-mute);
+    transition: all 220ms var(--ease-out);
+  }
+  .letter__thanks-close:hover {
+    color: var(--lf-acc);
+    border-color: rgba(var(--lf-acc-rgb), 0.55);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .letter__overlay,
+    .letter__sheet,
+    .letter__launch,
+    .letter__thanks,
+    .letter__thanks-stamp,
+    .letter__overlay-mote,
+    .letter__send.is-sending .letter__send-stamp { animation: none !important; transition: none !important; }
+  }
+</style>
