@@ -1,22 +1,30 @@
 ---
 import '~/styles/base.css';
 import BrandMark from '~/components/BrandMark.astro';
-import Galaxy from '~/components/Galaxy.astro';
+import ZineSky from '~/components/ZineSky.astro';
+import StarField from '~/components/StarField.astro';
 import AmbientPlayer from '~/components/AmbientPlayer.astro';
 import LetterForm from '~/components/LetterForm.astro';
 
 interface Props {
   title: string;
   description?: string;
-  /** When true, the galaxy renders in this page (default: true). */
-  galaxy?: boolean;
+  /**
+   * Which background atmosphere to render:
+   *   'zine'      — velvet ink, color blooms, paper grain,
+   *                 drifting gold motes (front-page zine).
+   *   'starfield' — dense uniform starfield, slow upward
+   *                 drift, twinkles (Loose Stars notebook).
+   *   'none'      — no background. Caller is responsible.
+   */
+  background?: 'zine' | 'starfield' | 'none';
   /** Body class hook for page-specific layout. */
   bodyClass?: string;
 }
 const {
   title,
   description = "Melody Jack — a small cosmology of writing. Slash, Nest, Build.",
-  galaxy = true,
+  background = 'zine',
   bodyClass = '',
 } = Astro.props;
 
@@ -49,7 +57,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site).toString();
     <meta name="twitter:description" content={description} />
   </head>
   <body class={bodyClass}>
-    {galaxy && <Galaxy />}
+    {background === 'zine'      && <ZineSky />}
+    {background === 'starfield' && <StarField />}
     <BrandMark />
     <main id="main">
       <slot />

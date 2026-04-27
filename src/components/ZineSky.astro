@@ -1,0 +1,302 @@
+---
+/**
+ * ZineSky — the background atmosphere for the zine page.
+ *
+ * Not a galactic starfield. The zine is a "tarot reading on
+ * velvet": deep ink-black with a subtle paper-grain overlay,
+ * a few warm and cool color blooms that drift like ink in
+ * water, a small drift of gold motes (dust catching light),
+ * and a soft vignette to hold the eye on the deck.
+ *
+ * Layers, back to front:
+ *   1. base wash — deep midnight with a subtle warm pool
+ *   2. ink blooms — four broad, low-opacity gradients that
+ *      drift slowly past each other (color in / color out)
+ *   3. paper grain — SVG noise overlay, multiplies into the
+ *      surface so the whole thing reads as printed, not lit
+ *   4. motes — a small canvas of glowing gold particles that
+ *      drift up + sideways, very low density
+ *   5. vignette — soft darkening at the edges
+ *
+ * No rotation, no spiral, no shooting stars. Quiet, ornate,
+ * and clearly hand-made.
+ */
+---
+
+<div class="zinesky" aria-hidden="true">
+  <div class="zinesky__bloom zinesky__bloom--violet"></div>
+  <div class="zinesky__bloom zinesky__bloom--gold"></div>
+  <div class="zinesky__bloom zinesky__bloom--rose"></div>
+  <div class="zinesky__bloom zinesky__bloom--teal"></div>
+  <div class="zinesky__center" aria-hidden="true"></div>
+  <canvas class="zinesky__motes" id="zineskyMotes"></canvas>
+  <div class="zinesky__grain" aria-hidden="true"></div>
+  <div class="zinesky__vignette" aria-hidden="true"></div>
+</div>
+
+<script>
+  /**
+   * Motes — slow-drifting gold particles, like dust caught in
+   * a beam of light. Low count (~80), random drift vectors,
+   * gentle vertical bias upward, subtle alpha twinkle. The
+   * canvas is fixed-position so it never reflows page layout.
+   */
+  function init() {
+    const canvas = document.getElementById('zineskyMotes') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const MOTE_COUNT = 80;
+    type Mote = {
+      x: number;       // px
+      y: number;       // px
+      vx: number;      // px/sec
+      vy: number;      // px/sec  (negative = drifting up)
+      r: number;       // radius (px)
+      base: number;    // base alpha
+      amp: number;     // twinkle alpha amplitude
+      twFreq: number;
+      twPhase: number;
+      tint: string;
+    };
+
+    let motes: Mote[] = [];
+    let dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+    let w = 0, h = 0;
+    let last = performance.now();
+
+    const tints = [
+      '255, 230, 175',  // warm gold
+      '255, 220, 165',
+      '255, 210, 200',  // dim rose
+      '255, 245, 215',  // very warm white
+    ];
+
+    function rand(min: number, max: number) {
+      return min + Math.random() * (max - min);
+    }
+
+    function seed() {
+      motes = [];
+      for (let i = 0; i < MOTE_COUNT; i++) {
+        motes.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          // Drift mostly upward, with a small lateral component.
+          // 8–22 px per second total speed.
+          vx: rand(-6, 6),
+          vy: -rand(4, 14),
+          r: rand(0.4, 1.6),
+          base: rand(0.18, 0.55),
+          amp: rand(0.10, 0.28),
+          twFreq: rand(0.15, 0.5),
+          twPhase: Math.random() * Math.PI * 2,
+          tint: tints[Math.floor(Math.random() * tints.length)],
+        });
+      }
+    }
+
+    function resize() {
+      const rect = canvas!.getBoundingClientRect();
+      w = rect.width;
+      h = rect.height;
+      canvas!.width  = Math.round(w * dpr);
+      canvas!.height = Math.round(h * dpr);
+      canvas!.style.width = `${w}px`;
+      canvas!.style.height = `${h}px`;
+    }
+
+    function draw(now: number, dt: number) {
+      const tSec = now / 1000;
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx!.clearRect(0, 0, w, h);
+      for (const m of motes) {
+        m.x += m.vx * dt;
+        m.y += m.vy * dt;
+        // Wrap vertically — when a mote drifts off the top, it
+        // re-enters from the bottom at a fresh x. This keeps the
+        // upward drift continuous without ever going empty.
+        if (m.y < -8) { m.y = h + 8; m.x = Math.random() * w; }
+        if (m.x < -8) m.x = w + 8;
+        if (m.x > w + 8) m.x = -8;
+
+        const a = Math.max(0.04, Math.min(1,
+          m.base + m.amp * Math.sin(tSec * m.twFreq * Math.PI * 2 + m.twPhase)
+        ));
+        // Halo
+        const halo = ctx!.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 5);
+        halo.addColorStop(0, `rgba(${m.tint}, ${a * 0.6})`);
+        halo.addColorStop(1, `rgba(${m.tint}, 0)`);
+        ctx!.fillStyle = halo;
+        ctx!.beginPath();
+        ctx!.arc(m.x, m.y, m.r * 5, 0, Math.PI * 2);
+        ctx!.fill();
+        // Core
+        ctx!.fillStyle = `rgba(${m.tint}, ${a})`;
+        ctx!.beginPath();
+        ctx!.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+    }
+
+    function tick(now: number) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      draw(now, dt);
+      requestAnimationFrame(tick);
+    }
+
+    function setup() {
+      dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      resize();
+      seed();
+      last = performance.now();
+      draw(last, 0);
+    }
+    setup();
+
+    let resizeT: number | undefined;
+    window.addEventListener('resize', () => {
+      if (resizeT) window.clearTimeout(resizeT);
+      resizeT = window.setTimeout(setup, 150);
+    });
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce) requestAnimationFrame(tick);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+</script>
+
+<style>
+  .zinesky {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    /* Base wash — deep ink with a faint warm pool at center. */
+    background:
+      radial-gradient(ellipse 70% 55% at 50% 40%, rgba(56, 38, 84, 0.35) 0%, transparent 70%),
+      linear-gradient(180deg, #0a0814 0%, #06050f 60%, #02020a 100%);
+  }
+
+  /* INK BLOOMS — broad, soft color clouds that drift slowly
+     past each other. Use mix-blend-mode: screen so the
+     colors layer like real light. Lower opacity than the
+     previous galaxy nebulae so the surface reads as deep ink
+     with hints of color rather than a swirl of gas. */
+  .zinesky__bloom {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    mix-blend-mode: screen;
+    will-change: transform;
+    pointer-events: none;
+  }
+  .zinesky__bloom--violet {
+    width: 70vmax;
+    height: 70vmax;
+    top: -22vmax;
+    left: -18vmax;
+    background: radial-gradient(circle, rgba(165, 110, 220, 0.32) 0%, rgba(165, 110, 220, 0) 60%);
+    animation: zs-drift-a 110s ease-in-out infinite alternate;
+  }
+  .zinesky__bloom--gold {
+    width: 55vmax;
+    height: 55vmax;
+    top: -10vmax;
+    right: -12vmax;
+    background: radial-gradient(circle, rgba(220, 175, 105, 0.30) 0%, rgba(220, 175, 105, 0) 60%);
+    animation: zs-drift-b 130s ease-in-out infinite alternate;
+  }
+  .zinesky__bloom--rose {
+    width: 55vmax;
+    height: 55vmax;
+    bottom: -12vmax;
+    right: -8vmax;
+    background: radial-gradient(circle, rgba(220, 130, 165, 0.26) 0%, rgba(220, 130, 165, 0) 60%);
+    animation: zs-drift-c 150s ease-in-out infinite alternate;
+  }
+  .zinesky__bloom--teal {
+    width: 48vmax;
+    height: 48vmax;
+    bottom: -10vmax;
+    left: -6vmax;
+    background: radial-gradient(circle, rgba(108, 165, 175, 0.26) 0%, rgba(108, 165, 175, 0) 60%);
+    animation: zs-drift-d 120s ease-in-out infinite alternate;
+  }
+  @keyframes zs-drift-a { from { transform: translate3d(0,0,0); } to { transform: translate3d(7vmax, 5vmax, 0); } }
+  @keyframes zs-drift-b { from { transform: translate3d(0,0,0); } to { transform: translate3d(-6vmax, 6vmax, 0); } }
+  @keyframes zs-drift-c { from { transform: translate3d(0,0,0); } to { transform: translate3d(-5vmax, -5vmax, 0); } }
+  @keyframes zs-drift-d { from { transform: translate3d(0,0,0); } to { transform: translate3d(5vmax, -4vmax, 0); } }
+
+  /* CENTER LIGHT — a soft, slow-pulsing warm pool right behind
+     the deck. Reads as the candlelight a tarot reader has set
+     on the table. Very subtle — it's the spotlight, not the
+     subject. */
+  .zinesky__center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 80vmax;
+    height: 50vmax;
+    transform: translate(-50%, -55%);
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(255, 215, 170, 0.10) 0%,
+      rgba(220, 160, 140, 0.05) 40%,
+      transparent 75%
+    );
+    filter: blur(40px);
+    mix-blend-mode: screen;
+    pointer-events: none;
+    animation: zs-pulse 14s ease-in-out infinite;
+  }
+  @keyframes zs-pulse {
+    0%, 100% { opacity: 0.85; transform: translate(-50%, -55%) scale(1); }
+    50%      { opacity: 1;    transform: translate(-50%, -55%) scale(1.05); }
+  }
+
+  /* MOTES — gold dust drifting up. Pure ornament. */
+  .zinesky__motes {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* PAPER GRAIN — SVG noise multiplied over the surface so the
+     whole canvas reads as printed paper, not raw screen pixels.
+     This is the load-bearing zine touch — it's what makes the
+     page feel hand-made rather than digital. */
+  .zinesky__grain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background-size: 220px 220px;
+    mix-blend-mode: overlay;
+    opacity: 0.18;
+  }
+
+  /* VIGNETTE — soft darkening at the corners so the eye is
+     held on the deck. */
+  .zinesky__vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      ellipse 85% 75% at 50% 50%,
+      transparent 55%,
+      rgba(0, 0, 0, 0.55) 100%
+    );
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .zinesky__bloom,
+    .zinesky__center { animation: none; }
+  }
+</style>
